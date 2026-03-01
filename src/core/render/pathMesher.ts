@@ -62,6 +62,8 @@ export interface PipeInstanceBuildResult {
 
 export interface PipeBuildOptions {
   cornerInset: number;
+  layerStepHeight: number;
+  planarStepSize: number;
 }
 
 export function buildPipeInstanceMatrices(
@@ -106,6 +108,9 @@ export function buildPipeInstanceMatrices(
   const straightMatrices: Matrix4[] = [];
   const cornerMatrices: Matrix4[] = [];
 
+  const layerStepHeight = Math.max(1e-4, options.layerStepHeight);
+  const planarStepSize = Math.max(1e-4, options.planarStepSize);
+
   const direction = new Vector3();
   const start = new Vector3();
   const end = new Vector3();
@@ -122,6 +127,12 @@ export function buildPipeInstanceMatrices(
 
     start.copy(toVector3(edge.a));
     end.copy(toVector3(edge.b));
+    start.x *= planarStepSize;
+    start.y *= layerStepHeight;
+    start.z *= planarStepSize;
+    end.x *= planarStepSize;
+    end.y *= layerStepHeight;
+    end.z *= planarStepSize;
     direction.subVectors(end, start);
     const rawLength = direction.length();
     if (rawLength <= 1e-6) {
@@ -153,7 +164,9 @@ export function buildPipeInstanceMatrices(
     }
 
     const center = vertices.get(key) ?? parsePointKey(key);
-    cornerMatrices.push(new Matrix4().makeTranslation(center.x, center.y, center.z));
+    cornerMatrices.push(
+      new Matrix4().makeTranslation(center.x * planarStepSize, center.y * layerStepHeight, center.z * planarStepSize),
+    );
   }
 
   return {

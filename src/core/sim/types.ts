@@ -26,7 +26,6 @@ export interface FrontState {
   clockwise: boolean;
   sideLength: number;
   sideStepsRemaining: number;
-  riseStepsRemaining: number;
   sidesCompleted: number;
   collisionStreak: number;
   completedSideOnLastMove: boolean;

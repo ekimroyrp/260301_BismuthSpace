@@ -329,6 +329,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
     const meshData = buildPipeInstanceMatrices(this.simulator.getEdges(), {
       cornerInset: this.pipeParams.cornerInset,
+      layerStepHeight: this.pipeParams.pipeOuterSize,
+      planarStepSize: this.pipeParams.pipeOuterSize,
     });
 
     this.straightInstancer.setMatrices(meshData.straightMatrices);

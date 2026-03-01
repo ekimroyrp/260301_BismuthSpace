@@ -9,7 +9,6 @@ const HORIZONTAL_DIRECTIONS: readonly Int3[] = [
   { x: 0, y: 0, z: -1 },
 ];
 
-const UP_DIRECTION: Int3 = { x: 0, y: 1, z: 0 };
 const LOOP_GROW_PER_CYCLE = 1;
 const SIDES_PER_LOOP = 4;
 
@@ -195,7 +194,6 @@ export class BismuthSimulator {
       clockwise: this.rng.next() > 0.5,
       sideLength: Math.max(2, sideLength),
       sideStepsRemaining: 0,
-      riseStepsRemaining: 0,
       sidesCompleted: 0,
       collisionStreak: 0,
       completedSideOnLastMove: false,
@@ -245,12 +243,6 @@ export class BismuthSimulator {
   }
 
   private nextDirection(front: FrontState): Int3 | null {
-    if (front.riseStepsRemaining > 0) {
-      front.riseStepsRemaining -= 1;
-      front.completedSideOnLastMove = false;
-      return UP_DIRECTION;
-    }
-
     if (front.sideLength <= 0) {
       front.alive = false;
       return null;
@@ -265,13 +257,22 @@ export class BismuthSimulator {
 
     if (front.sideStepsRemaining === 0) {
       front.completedSideOnLastMove = true;
-      front.riseStepsRemaining = this.params.risePerSide;
       front.currentDirectionIndex = (front.currentDirectionIndex + (front.clockwise ? 1 : 3)) % HORIZONTAL_DIRECTIONS.length;
       front.sidesCompleted += 1;
 
       if (front.sidesCompleted % SIDES_PER_LOOP === 0) {
         const maxSideLength = Math.max(2, this.params.boundsRadius * 2);
         front.sideLength = Math.min(maxSideLength, front.sideLength + LOOP_GROW_PER_CYCLE);
+        if (this.params.risePerSide > 0) {
+          front.position = {
+            ...front.position,
+            y: front.position.y + this.params.risePerSide,
+          };
+          if (!this.withinBounds(front.position)) {
+            front.alive = false;
+            return null;
+          }
+        }
       }
     } else {
       front.completedSideOnLastMove = false;
