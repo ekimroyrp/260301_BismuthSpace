@@ -10,7 +10,8 @@ const HORIZONTAL_DIRECTIONS: readonly Int3[] = [
 ];
 
 const UP_DIRECTION: Int3 = { x: 0, y: 1, z: 0 };
-const LOOP_SHRINK_PER_CYCLE = 1;
+const LOOP_GROW_PER_CYCLE = 1;
+const SIDES_PER_LOOP = 4;
 
 function clonePoint(point: Int3): Int3 {
   return { x: point.x, y: point.y, z: point.z };
@@ -268,11 +269,9 @@ export class BismuthSimulator {
       front.currentDirectionIndex = (front.currentDirectionIndex + (front.clockwise ? 1 : 3)) % HORIZONTAL_DIRECTIONS.length;
       front.sidesCompleted += 1;
 
-      if (front.sidesCompleted % 2 === 0) {
-        front.sideLength -= LOOP_SHRINK_PER_CYCLE;
-        if (front.sideLength <= 0) {
-          front.alive = false;
-        }
+      if (front.sidesCompleted % SIDES_PER_LOOP === 0) {
+        const maxSideLength = Math.max(2, this.params.boundsRadius * 2);
+        front.sideLength = Math.min(maxSideLength, front.sideLength + LOOP_GROW_PER_CYCLE);
       }
     } else {
       front.completedSideOnLastMove = false;

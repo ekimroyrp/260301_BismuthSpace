@@ -64,7 +64,7 @@ const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
   segmentsPerStep: 8,
   branchChance: 0.18,
   maxActiveFronts: 24,
-  initialLoopSize: 12,
+  initialLoopSize: 5,
   risePerSide: 1,
   boundsRadius: 80,
 };
