@@ -5,13 +5,11 @@ export interface SimulationParams {
   branchChance: number;
   maxActiveFronts: number;
   initialLoopSize: number;
-  risePerSide: number;
   boundsRadius: number;
 }
 
 export interface PipeParams {
   pipeOuterSize: number;
-  pipeWallThickness: number;
   cornerInset: number;
 }
 
@@ -27,7 +25,7 @@ export interface BismuthFormsApp {
   reset(): void;
   setSeed(seed: number): void;
   setSimulationParams(partial: Partial<SimulationParams>): void;
-  setPipeParams(partial: Partial<Omit<PipeParams, 'cornerInset'>>): void;
+  setPipeParams(partial: Partial<Pick<PipeParams, 'pipeOuterSize'>>): void;
   setMaterialParams(partial: Partial<MaterialParams>): void;
   isRunning(): boolean;
   dispose(): void;

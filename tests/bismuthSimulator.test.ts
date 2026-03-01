@@ -9,7 +9,6 @@ const BASE_PARAMS: SimulationParams = {
   branchChance: 0.2,
   maxActiveFronts: 16,
   initialLoopSize: 12,
-  risePerSide: 1,
   boundsRadius: 40,
 };
 

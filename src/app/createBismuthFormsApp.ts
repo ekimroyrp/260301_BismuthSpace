@@ -45,12 +45,8 @@ interface UiElements {
   maxFrontsValue: HTMLSpanElement;
   initialLoop: HTMLInputElement;
   initialLoopValue: HTMLSpanElement;
-  risePerSide: HTMLInputElement;
-  risePerSideValue: HTMLSpanElement;
   pipeOuterSize: HTMLInputElement;
   pipeOuterSizeValue: HTMLSpanElement;
-  pipeWallThickness: HTMLInputElement;
-  pipeWallThicknessValue: HTMLSpanElement;
   iridescenceStrength: HTMLInputElement;
   iridescenceStrengthValue: HTMLSpanElement;
   hueBandFrequency: HTMLInputElement;
@@ -64,13 +60,11 @@ const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
   branchChance: 0.18,
   maxActiveFronts: 24,
   initialLoopSize: 5,
-  risePerSide: 1,
   boundsRadius: 80,
 };
 
 const DEFAULT_PIPE_PARAMS: PipeParams = {
   pipeOuterSize: 0.22,
-  pipeWallThickness: 0.06,
   cornerInset: 0.11,
 };
 
@@ -180,12 +174,10 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.simulator.setParams(this.simulationParams);
   }
 
-  setPipeParams(partial: Partial<Omit<PipeParams, 'cornerInset'>>): void {
+  setPipeParams(partial: Partial<Pick<PipeParams, 'pipeOuterSize'>>): void {
     const nextOuter = MathUtils.clamp(partial.pipeOuterSize ?? this.pipeParams.pipeOuterSize, 0.05, 1);
-    const nextWall = MathUtils.clamp(partial.pipeWallThickness ?? this.pipeParams.pipeWallThickness, 0.005, nextOuter * 0.48);
     this.pipeParams = {
       pipeOuterSize: nextOuter,
-      pipeWallThickness: nextWall,
       cornerInset: nextOuter * 0.5,
     };
 
@@ -295,12 +287,12 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const maxInstances = this.simulationParams.maxSegments;
 
     this.straightInstancer = new StraightPipeInstancer(
-      createStraightPipeGeometry(this.pipeParams.pipeOuterSize, this.pipeParams.pipeWallThickness),
+      createStraightPipeGeometry(this.pipeParams.pipeOuterSize),
       material,
       maxInstances,
     );
     this.cornerInstancer = new MiterCornerInstancer(
-      createMiterCornerGeometry(this.pipeParams.pipeOuterSize, this.pipeParams.pipeWallThickness),
+      createMiterCornerGeometry(this.pipeParams.pipeOuterSize),
       material,
       maxInstances,
     );
@@ -391,12 +383,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const maxFrontsValue = document.getElementById('max-fronts-value');
     const initialLoop = document.getElementById('initial-loop');
     const initialLoopValue = document.getElementById('initial-loop-value');
-    const risePerSide = document.getElementById('rise-per-side');
-    const risePerSideValue = document.getElementById('rise-per-side-value');
     const pipeOuterSize = document.getElementById('pipe-outer-size');
     const pipeOuterSizeValue = document.getElementById('pipe-outer-size-value');
-    const pipeWallThickness = document.getElementById('pipe-wall-thickness');
-    const pipeWallThicknessValue = document.getElementById('pipe-wall-thickness-value');
     const iridescenceStrength = document.getElementById('iridescence-strength');
     const iridescenceStrengthValue = document.getElementById('iridescence-strength-value');
     const hueBandFrequency = document.getElementById('hue-band-frequency');
@@ -420,12 +408,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       !(maxFrontsValue instanceof HTMLSpanElement) ||
       !(initialLoop instanceof HTMLInputElement) ||
       !(initialLoopValue instanceof HTMLSpanElement) ||
-      !(risePerSide instanceof HTMLInputElement) ||
-      !(risePerSideValue instanceof HTMLSpanElement) ||
       !(pipeOuterSize instanceof HTMLInputElement) ||
       !(pipeOuterSizeValue instanceof HTMLSpanElement) ||
-      !(pipeWallThickness instanceof HTMLInputElement) ||
-      !(pipeWallThicknessValue instanceof HTMLSpanElement) ||
       !(iridescenceStrength instanceof HTMLInputElement) ||
       !(iridescenceStrengthValue instanceof HTMLSpanElement) ||
       !(hueBandFrequency instanceof HTMLInputElement) ||
@@ -452,12 +436,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       maxFrontsValue,
       initialLoop,
       initialLoopValue,
-      risePerSide,
-      risePerSideValue,
       pipeOuterSize,
       pipeOuterSizeValue,
-      pipeWallThickness,
-      pipeWallThicknessValue,
       iridescenceStrength,
       iridescenceStrengthValue,
       hueBandFrequency,
@@ -487,17 +467,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       this.reset();
     });
 
-    this.bindRange(this.ui.risePerSide, this.ui.risePerSideValue, (value) => `${Math.round(value)}`, (value) => {
-      this.setSimulationParams({ risePerSide: Math.round(value) });
-      this.reset();
-    });
-
     this.bindRange(this.ui.pipeOuterSize, this.ui.pipeOuterSizeValue, (value) => value.toFixed(2), (value) => {
       this.setPipeParams({ pipeOuterSize: value });
-    });
-
-    this.bindRange(this.ui.pipeWallThickness, this.ui.pipeWallThicknessValue, (value) => value.toFixed(2), (value) => {
-      this.setPipeParams({ pipeWallThickness: value });
     });
 
     this.bindRange(
@@ -669,7 +640,6 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       branchChance: MathUtils.clamp(params.branchChance, 0, 1),
       maxActiveFronts: MathUtils.clamp(Math.round(params.maxActiveFronts), 1, 512),
       initialLoopSize: MathUtils.clamp(Math.round(params.initialLoopSize), 2, 256),
-      risePerSide: MathUtils.clamp(Math.round(params.risePerSide), 0, 16),
       boundsRadius: MathUtils.clamp(Math.round(params.boundsRadius), 4, 4096),
     };
   }

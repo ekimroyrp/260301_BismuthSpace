@@ -40,9 +40,7 @@
   - `Branch Chance`
   - `Max Active Fronts`
   - `Initial Loop Size`
-  - `Rise Per Side`
   - `Pipe Outer Size`
-  - `Pipe Wall Thickness`
 - Material:
   - `Iridescence Strength`
   - `Hue Band Frequency`

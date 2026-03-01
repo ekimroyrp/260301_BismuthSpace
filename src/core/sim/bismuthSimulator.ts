@@ -11,6 +11,7 @@ const HORIZONTAL_DIRECTIONS: readonly Int3[] = [
 
 const LOOP_GROW_PER_CYCLE = 1;
 const SIDES_PER_LOOP = 4;
+const LAYER_RISE_PER_LOOP = 1;
 
 function clonePoint(point: Int3): Int3 {
   return { x: point.x, y: point.y, z: point.z };
@@ -58,7 +59,6 @@ function sanitizeSimulationParams(params: SimulationParams): SimulationParams {
     branchChance: clampNumber(params.branchChance, 0, 1),
     maxActiveFronts: clampInt(params.maxActiveFronts, 1, 512),
     initialLoopSize: clampInt(params.initialLoopSize, 2, 256),
-    risePerSide: clampInt(params.risePerSide, 0, 16),
     boundsRadius: clampInt(params.boundsRadius, 4, 4096),
   };
 }
@@ -263,15 +263,13 @@ export class BismuthSimulator {
       if (front.sidesCompleted % SIDES_PER_LOOP === 0) {
         const maxSideLength = Math.max(2, this.params.boundsRadius * 2);
         front.sideLength = Math.min(maxSideLength, front.sideLength + LOOP_GROW_PER_CYCLE);
-        if (this.params.risePerSide > 0) {
-          front.position = {
-            ...front.position,
-            y: front.position.y + this.params.risePerSide,
-          };
-          if (!this.withinBounds(front.position)) {
-            front.alive = false;
-            return null;
-          }
+        front.position = {
+          ...front.position,
+          y: front.position.y + LAYER_RISE_PER_LOOP,
+        };
+        if (!this.withinBounds(front.position)) {
+          front.alive = false;
+          return null;
         }
       }
     } else {
