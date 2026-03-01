@@ -21,9 +21,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { createBismuthMaterial, type BismuthMaterialController } from '../core/material/bismuthMaterial';
 import { applyOrbitMouseMapping } from '../core/orbitMapping';
 import { buildPipeInstanceMatrices } from '../core/render/pathMesher';
-import { createMiterCornerGeometry, createPipeCapGeometry, createStraightPipeGeometry } from '../core/render/pipeGeometry';
+import { createMiterCornerGeometry, createStraightPipeGeometry } from '../core/render/pipeGeometry';
 import { MiterCornerInstancer } from '../core/render/miterCornerInstancer';
-import { PipeCapInstancer } from '../core/render/pipeCapInstancer';
 import { StraightPipeInstancer } from '../core/render/straightPipeInstancer';
 import { BismuthSimulator } from '../core/sim/bismuthSimulator';
 import type { BismuthFormsApp, MaterialParams, PipeParams, SimulationParams } from '../types';
@@ -96,7 +95,6 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private environmentTarget: WebGLRenderTarget | null = null;
   private straightInstancer: StraightPipeInstancer | null = null;
   private cornerInstancer: MiterCornerInstancer | null = null;
-  private capInstancer: PipeCapInstancer | null = null;
   private running = false;
   private animationFrame = 0;
 
@@ -306,15 +304,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       material,
       maxInstances,
     );
-    this.capInstancer = new PipeCapInstancer(
-      createPipeCapGeometry(this.pipeParams.pipeOuterSize, this.pipeParams.pipeWallThickness),
-      material,
-      maxInstances,
-    );
 
     this.scene.add(this.straightInstancer.mesh);
     this.scene.add(this.cornerInstancer.mesh);
-    this.scene.add(this.capInstancer.mesh);
   }
 
   private disposeInstancers(): void {
@@ -328,26 +320,19 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       this.cornerInstancer.disposeGeometry();
       this.cornerInstancer = null;
     }
-    if (this.capInstancer) {
-      this.scene.remove(this.capInstancer.mesh);
-      this.capInstancer.disposeGeometry();
-      this.capInstancer = null;
-    }
   }
 
   private rebuildAllMeshInstances(): void {
-    if (!this.straightInstancer || !this.cornerInstancer || !this.capInstancer) {
+    if (!this.straightInstancer || !this.cornerInstancer) {
       return;
     }
 
     const meshData = buildPipeInstanceMatrices(this.simulator.getEdges(), {
       cornerInset: this.pipeParams.cornerInset,
-      capThickness: this.pipeParams.pipeWallThickness,
     });
 
     this.straightInstancer.setMatrices(meshData.straightMatrices);
     this.cornerInstancer.setMatrices(meshData.cornerMatrices);
-    this.capInstancer.setMatrices(meshData.capMatrices);
   }
 
   private animationLoop = (): void => {

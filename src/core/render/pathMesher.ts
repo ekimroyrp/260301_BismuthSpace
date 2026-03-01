@@ -44,7 +44,12 @@ export function classifyVertex(vectorsFromVertexToNeighbors: readonly Int3[]): V
   return 'junction';
 }
 
-export function computeTrimmedSegmentLength(rawLength: number, startType: VertexType, endType: VertexType, cornerInset: number): number {
+export function computeTrimmedSegmentLength(
+  rawLength: number,
+  startType: VertexType,
+  endType: VertexType,
+  cornerInset: number,
+): number {
   const startTrim = startType === 'turn' ? cornerInset : 0;
   const endTrim = endType === 'turn' ? cornerInset : 0;
   return Math.max(0, rawLength - startTrim - endTrim);
@@ -53,12 +58,10 @@ export function computeTrimmedSegmentLength(rawLength: number, startType: Vertex
 export interface PipeInstanceBuildResult {
   straightMatrices: Matrix4[];
   cornerMatrices: Matrix4[];
-  capMatrices: Matrix4[];
 }
 
 export interface PipeBuildOptions {
   cornerInset: number;
-  capThickness: number;
 }
 
 export function buildPipeInstanceMatrices(
@@ -102,7 +105,6 @@ export function buildPipeInstanceMatrices(
 
   const straightMatrices: Matrix4[] = [];
   const cornerMatrices: Matrix4[] = [];
-  const capMatrices: Matrix4[] = [];
 
   const direction = new Vector3();
   const start = new Vector3();
@@ -150,59 +152,12 @@ export function buildPipeInstanceMatrices(
       continue;
     }
 
-    const neighbors = adjacency.get(key);
     const center = vertices.get(key) ?? parsePointKey(key);
-    if (!neighbors || neighbors.size !== 2) {
-      continue;
-    }
-
-    const [neighborAKey, neighborBKey] = Array.from(neighbors);
-    const neighborA = vertices.get(neighborAKey) ?? parsePointKey(neighborAKey);
-    const neighborB = vertices.get(neighborBKey) ?? parsePointKey(neighborBKey);
-
-    const dirA = toVector3(subtract(neighborA, center)).normalize();
-    const dirB = toVector3(subtract(neighborB, center)).normalize();
-    if (Math.abs(dirA.dot(dirB)) > 0.99) {
-      continue;
-    }
-
-    const normal = new Vector3().crossVectors(dirA, dirB);
-    if (normal.lengthSq() <= 1e-8) {
-      continue;
-    }
-    normal.normalize();
-
-    const basis = new Matrix4().makeBasis(dirA, dirB, normal);
-    basis.setPosition(center.x, center.y, center.z);
-    cornerMatrices.push(basis);
-  }
-
-  const capThickness = Math.max(0.0005, options.capThickness);
-  for (const [key, type] of vertexTypes) {
-    if (type !== 'endpoint') {
-      continue;
-    }
-
-    const neighbors = adjacency.get(key);
-    const center = vertices.get(key) ?? parsePointKey(key);
-    if (!neighbors || neighbors.size !== 1) {
-      continue;
-    }
-
-    const [neighborKey] = Array.from(neighbors);
-    const neighbor = vertices.get(neighborKey) ?? parsePointKey(neighborKey);
-    const outward = toVector3(subtract(center, neighbor)).normalize();
-    const capPosition = toVector3(center).addScaledVector(outward, capThickness * 0.5);
-
-    quaternion.setFromUnitVectors(UP, outward);
-    scale.set(1, 1, 1);
-    matrix.compose(capPosition, quaternion, scale);
-    capMatrices.push(matrix.clone());
+    cornerMatrices.push(new Matrix4().makeTranslation(center.x, center.y, center.z));
   }
 
   return {
     straightMatrices,
     cornerMatrices,
-    capMatrices,
   };
 }
