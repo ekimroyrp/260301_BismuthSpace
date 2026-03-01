@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>260301_BismuthForms</title>
+    <style>
+      #ui-panel {
+        visibility: hidden;
+        opacity: 0;
+      }
+
+      html.ui-ready #ui-panel {
+        visibility: visible;
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui-panel">
+      <div id="ui-handle">
+        <button
+          type="button"
+          id="collapse-toggle"
+          class="collapse-button"
+          aria-label="Collapse controls"
+          aria-expanded="true"
+        >
+          <span class="collapse-icon">v</span>
+        </button>
+      </div>
+      <div class="ui-body">
+        <div class="control-hint">
+          <div>Wheel = Zoom</div>
+          <div>MMB = Pan</div>
+          <div>RMB = Orbit</div>
+        </div>
+
+        <div class="control control-grid-3">
+          <button type="button" id="start-sim" class="pill-button">Start</button>
+          <button type="button" id="stop-sim" class="pill-button">Stop</button>
+          <button type="button" id="reset-sim" class="pill-button">Reset</button>
+        </div>
+
+        <div class="control control-grid-2">
+          <label class="control compact">
+            <div class="control-row">
+              <span>Seed</span>
+            </div>
+            <input type="number" id="seed-value" class="number-input" value="260301" step="1" />
+          </label>
+          <button type="button" id="random-seed" class="pill-button">Randomize Seed</button>
+        </div>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Growth Rate</span>
+            <span id="growth-rate-value">8</span>
+          </div>
+          <input type="range" id="growth-rate" min="1" max="64" step="1" value="8" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Branch Chance</span>
+            <span id="branch-chance-value">0.18</span>
+          </div>
+          <input type="range" id="branch-chance" min="0" max="0.75" step="0.01" value="0.18" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Max Active Fronts</span>
+            <span id="max-fronts-value">24</span>
+          </div>
+          <input type="range" id="max-fronts" min="1" max="64" step="1" value="24" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Initial Loop Size</span>
+            <span id="initial-loop-value">12</span>
+          </div>
+          <input type="range" id="initial-loop" min="3" max="36" step="1" value="12" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Rise Per Side</span>
+            <span id="rise-per-side-value">1</span>
+          </div>
+          <input type="range" id="rise-per-side" min="0" max="4" step="1" value="1" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Pipe Outer Size</span>
+            <span id="pipe-outer-size-value">0.22</span>
+          </div>
+          <input type="range" id="pipe-outer-size" min="0.08" max="0.45" step="0.01" value="0.22" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Pipe Wall Thickness</span>
+            <span id="pipe-wall-thickness-value">0.06</span>
+          </div>
+          <input type="range" id="pipe-wall-thickness" min="0.01" max="0.16" step="0.01" value="0.06" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Iridescence Strength</span>
+            <span id="iridescence-strength-value">0.75</span>
+          </div>
+          <input type="range" id="iridescence-strength" min="0" max="1.5" step="0.01" value="0.75" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Hue Band Frequency</span>
+            <span id="hue-band-frequency-value">0.90</span>
+          </div>
+          <input type="range" id="hue-band-frequency" min="0.1" max="3" step="0.01" value="0.9" />
+        </label>
+      </div>
+      <div id="ui-handle-bottom"></div>
+    </div>
+    <canvas id="app-canvas"></canvas>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
