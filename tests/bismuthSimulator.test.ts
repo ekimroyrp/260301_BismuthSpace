@@ -53,4 +53,22 @@ describe('BismuthSimulator', () => {
 
     expect(signatureA).toEqual(signatureB);
   });
+
+  it('emits only horizontal path edges per layer (no vertical connector segments)', () => {
+    const simulator = new BismuthSimulator({
+      ...BASE_PARAMS,
+      maxSegments: 2000,
+      segmentsPerStep: 24,
+      branchChance: 0.25,
+    });
+
+    while (!simulator.isFinished()) {
+      simulator.step();
+    }
+
+    for (const edge of simulator.getEdges()) {
+      const dy = edge.b.y - edge.a.y;
+      expect(dy).toBe(0);
+    }
+  });
 });

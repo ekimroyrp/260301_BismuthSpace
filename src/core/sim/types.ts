@@ -19,15 +19,20 @@ export interface SimulatorSnapshot {
   edges: LatticeEdge[];
 }
 
+export interface FrontSegmentState {
+  length: number;
+}
+
 export interface FrontState {
   id: number;
-  position: Int3;
-  currentDirectionIndex: number;
+  basePosition: Int3;
+  layerY: number;
+  baseDirectionIndex: number;
   clockwise: boolean;
-  sideLength: number;
-  sideStepsRemaining: number;
-  sidesCompleted: number;
+  segments: FrontSegmentState[];
+  initialSegmentLength: number;
+  latestHead: Int3;
+  latestEndDirectionIndex: number;
   collisionStreak: number;
-  completedSideOnLastMove: boolean;
   alive: boolean;
 }

@@ -9,20 +9,24 @@ const HORIZONTAL_DIRECTIONS: readonly Int3[] = [
   { x: 0, y: 0, z: -1 },
 ];
 
-const LOOP_GROW_PER_CYCLE = 1;
-const SIDES_PER_LOOP = 4;
 const LAYER_RISE_PER_LOOP = 1;
+const NEW_SEGMENT_CHANCE = 0.1;
+const DEATH_CHANCE = 0.01;
+const GROUP_SPAWN_CHANCE_SCALE = 0.085;
+const SEGMENT_GROWTH_BIAS = 0.12;
+const SEGMENT_GROWTH_SCALE = 1.18;
+const MAX_SEGMENTS_PER_FRONT = 6;
+const FRONT_COLLISION_STREAK_LIMIT = 14;
+
+interface EmitPathResult {
+  addedEdges: LatticeEdge[];
+  head: Int3;
+  endDirectionIndex: number;
+  hitBounds: boolean;
+}
 
 function clonePoint(point: Int3): Int3 {
   return { x: point.x, y: point.y, z: point.z };
-}
-
-function addPoint(a: Int3, b: Int3): Int3 {
-  return {
-    x: a.x + b.x,
-    y: a.y + b.y,
-    z: a.z + b.z,
-  };
 }
 
 function pointKey(point: Int3): string {
@@ -49,6 +53,10 @@ function clampNumber(value: number, min: number, max: number): number {
     return min;
   }
   return Math.max(min, Math.min(max, value));
+}
+
+function rotateDirectionIndex(directionIndex: number, clockwise: boolean): number {
+  return (directionIndex + (clockwise ? 1 : 3)) % HORIZONTAL_DIRECTIONS.length;
 }
 
 function sanitizeSimulationParams(params: SimulationParams): SimulationParams {
@@ -125,7 +133,7 @@ export class BismuthSimulator {
         break;
       }
 
-      const maxAttempts = Math.max(4, this.fronts.length * 3);
+      const maxAttempts = Math.max(4, this.fronts.length * 2);
       let addedInOp = false;
 
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -136,13 +144,13 @@ export class BismuthSimulator {
         this.frontCursor = (frontIndex + 1) % Math.max(1, this.fronts.length);
         const front = this.fronts[frontIndex];
 
-        const edge = this.advanceFront(front);
+        const frontEdges = this.advanceFront(front);
         if (!front.alive) {
           this.removeFrontAt(frontIndex);
         }
 
-        if (edge) {
-          addedEdges.push(edge);
+        if (frontEdges.length > 0) {
+          addedEdges.push(...frontEdges);
           addedInOp = true;
           break;
         }
@@ -186,147 +194,196 @@ export class BismuthSimulator {
     }
   }
 
-  private createFront(position: Int3, sideLength: number): FrontState {
+  private createFront(position: Int3, initialSegmentLength: number): FrontState {
+    const startDirectionIndex = this.rng.nextInt(0, HORIZONTAL_DIRECTIONS.length - 1);
+    const seededLength = Math.max(0.45, initialSegmentLength * (0.28 + this.rng.next() * 0.38));
+
     return {
       id: this.nextFrontId++,
-      position: clonePoint(position),
-      currentDirectionIndex: this.rng.nextInt(0, HORIZONTAL_DIRECTIONS.length - 1),
+      basePosition: clonePoint(position),
+      layerY: position.y,
+      baseDirectionIndex: startDirectionIndex,
       clockwise: this.rng.next() > 0.5,
-      sideLength: Math.max(2, sideLength),
-      sideStepsRemaining: 0,
-      sidesCompleted: 0,
+      segments: [{ length: seededLength }],
+      initialSegmentLength: Math.max(1, Math.round(initialSegmentLength)),
+      latestHead: clonePoint(position),
+      latestEndDirectionIndex: startDirectionIndex,
       collisionStreak: 0,
-      completedSideOnLastMove: false,
       alive: true,
     };
   }
 
-  private advanceFront(front: FrontState): LatticeEdge | null {
-    const direction = this.nextDirection(front);
-    if (!direction || !front.alive) {
-      front.alive = false;
-      return null;
+  private advanceFront(front: FrontState): LatticeEdge[] {
+    if (!front.alive) {
+      return [];
     }
 
-    const nextPosition = addPoint(front.position, direction);
-    if (!this.withinBounds(nextPosition)) {
+    if (front.segments.length === 0 || this.rng.next() < NEW_SEGMENT_CHANCE) {
+      front.segments.push({ length: 0 });
+    }
+
+    const growthDelta = SEGMENT_GROWTH_BIAS + this.rng.next() * SEGMENT_GROWTH_SCALE;
+    for (const segment of front.segments) {
+      segment.length += growthDelta;
+    }
+
+    this.trimSegmentHistory(front);
+    if (!front.alive) {
+      return [];
+    }
+
+    const emitResult = this.emitFrontPath(front);
+    front.latestHead = clonePoint(emitResult.head);
+    front.latestEndDirectionIndex = emitResult.endDirectionIndex;
+
+    if (emitResult.hitBounds) {
+      front.collisionStreak += 2;
+    } else if (emitResult.addedEdges.length === 0) {
       front.collisionStreak += 1;
-      if (front.collisionStreak >= 3) {
-        front.alive = false;
-      }
-      return null;
-    }
-
-    const edge: LatticeEdge = {
-      a: clonePoint(front.position),
-      b: clonePoint(nextPosition),
-    };
-
-    if (!this.tryAddEdge(edge.a, edge.b)) {
-      front.collisionStreak += 1;
-      if (front.collisionStreak >= 4) {
-        front.alive = false;
-      }
-      return null;
-    }
-
-    front.position = nextPosition;
-    front.collisionStreak = 0;
-
-    if (front.completedSideOnLastMove) {
-      front.completedSideOnLastMove = false;
-      this.maybeSpawnBranch(front);
-    }
-
-    this.edges.push(edge);
-    return edge;
-  }
-
-  private nextDirection(front: FrontState): Int3 | null {
-    if (front.sideLength <= 0) {
-      front.alive = false;
-      return null;
-    }
-
-    if (front.sideStepsRemaining <= 0) {
-      front.sideStepsRemaining = Math.max(1, front.sideLength);
-    }
-
-    const direction = HORIZONTAL_DIRECTIONS[front.currentDirectionIndex];
-    front.sideStepsRemaining -= 1;
-
-    if (front.sideStepsRemaining === 0) {
-      front.completedSideOnLastMove = true;
-      front.currentDirectionIndex = (front.currentDirectionIndex + (front.clockwise ? 1 : 3)) % HORIZONTAL_DIRECTIONS.length;
-      front.sidesCompleted += 1;
-
-      if (front.sidesCompleted % SIDES_PER_LOOP === 0) {
-        const maxSideLength = Math.max(2, this.params.boundsRadius * 2);
-        front.sideLength = Math.min(maxSideLength, front.sideLength + LOOP_GROW_PER_CYCLE);
-        front.position = {
-          ...front.position,
-          y: front.position.y + LAYER_RISE_PER_LOOP,
-        };
-        if (!this.withinBounds(front.position)) {
-          front.alive = false;
-          return null;
-        }
-      }
     } else {
-      front.completedSideOnLastMove = false;
+      front.collisionStreak = 0;
     }
 
-    return direction;
+    if (front.collisionStreak >= FRONT_COLLISION_STREAK_LIMIT) {
+      front.alive = false;
+    }
+
+    this.maybeSpawnBranch(front, emitResult.head);
+    this.maybeKillFront(front);
+
+    front.layerY += LAYER_RISE_PER_LOOP;
+    front.basePosition = {
+      ...front.basePosition,
+      y: front.layerY,
+    };
+    if (!this.withinBounds(front.basePosition)) {
+      front.alive = false;
+    }
+
+    this.edges.push(...emitResult.addedEdges);
+    return emitResult.addedEdges;
   }
 
-  private maybeSpawnBranch(parent: FrontState): void {
+  private trimSegmentHistory(front: FrontState): void {
+    while (front.segments.length > MAX_SEGMENTS_PER_FRONT) {
+      const removed = front.segments.shift();
+      if (!removed) {
+        return;
+      }
+
+      const removedSteps = Math.max(0, Math.floor(removed.length));
+      const forward = HORIZONTAL_DIRECTIONS[front.baseDirectionIndex];
+      front.basePosition = {
+        x: front.basePosition.x + forward.x * removedSteps,
+        y: front.layerY,
+        z: front.basePosition.z + forward.z * removedSteps,
+      };
+      front.baseDirectionIndex = rotateDirectionIndex(front.baseDirectionIndex, front.clockwise);
+
+      if (!this.withinBounds(front.basePosition)) {
+        front.alive = false;
+        return;
+      }
+    }
+  }
+
+  private emitFrontPath(front: FrontState): EmitPathResult {
+    let cursorX = front.basePosition.x;
+    let cursorZ = front.basePosition.z;
+    const y = front.layerY;
+    let directionIndex = front.baseDirectionIndex;
+    let hitBounds = false;
+    const addedEdges: LatticeEdge[] = [];
+
+    for (const segment of front.segments) {
+      const steps = Math.max(0, Math.floor(segment.length));
+      const direction = HORIZONTAL_DIRECTIONS[directionIndex];
+      for (let step = 0; step < steps; step += 1) {
+        const a: Int3 = { x: cursorX, y, z: cursorZ };
+        const b: Int3 = {
+          x: cursorX + direction.x,
+          y,
+          z: cursorZ + direction.z,
+        };
+
+        if (!this.withinBounds(b)) {
+          hitBounds = true;
+          break;
+        }
+
+        this.tryAddEdge(a, b, addedEdges);
+        cursorX = b.x;
+        cursorZ = b.z;
+      }
+
+      directionIndex = rotateDirectionIndex(directionIndex, front.clockwise);
+      if (hitBounds) {
+        break;
+      }
+    }
+
+    return {
+      addedEdges,
+      head: { x: cursorX, y, z: cursorZ },
+      endDirectionIndex: directionIndex,
+      hitBounds,
+    };
+  }
+
+  private maybeSpawnBranch(parent: FrontState, head: Int3): void {
+    if (!parent.alive) {
+      return;
+    }
     if (this.fronts.length >= this.params.maxActiveFronts) {
       return;
     }
-    if (this.rng.next() > this.params.branchChance) {
+
+    const groupSpawnChance = clampNumber(this.params.branchChance * GROUP_SPAWN_CHANCE_SCALE, 0, 0.35);
+    if (this.rng.next() > groupSpawnChance) {
       return;
     }
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const offsetDirection = this.rng.pickOne(HORIZONTAL_DIRECTIONS);
-      const offsetDistance = this.rng.nextInt(2, 4);
-      const lift = this.rng.nextInt(0, 2);
-      const startPosition: Int3 = {
-        x: parent.position.x + offsetDirection.x * offsetDistance,
-        y: parent.position.y + lift,
-        z: parent.position.z + offsetDirection.z * offsetDistance,
-      };
-
-      if (!this.withinBounds(startPosition)) {
-        continue;
-      }
-      if (this.adjacency.has(pointKey(startPosition))) {
-        continue;
-      }
-
-      const childSideLength = Math.max(3, Math.floor(parent.sideLength * (0.55 + this.rng.next() * 0.4)));
-      this.fronts.push(this.createFront(startPosition, childSideLength));
+    const spawn: Int3 = {
+      x: head.x,
+      y: Math.max(0, head.y + this.rng.nextInt(0, 1)),
+      z: head.z,
+    };
+    if (!this.withinBounds(spawn)) {
       return;
+    }
+
+    const childLength = Math.max(
+      2,
+      Math.floor(parent.initialSegmentLength * (0.7 + this.rng.next() * 0.55)),
+    );
+    this.fronts.push(this.createFront(spawn, childLength));
+
+    if (parent.segments.length > 0) {
+      parent.segments.pop();
     }
   }
 
-  private tryAddEdge(a: Int3, b: Int3): boolean {
+  private maybeKillFront(front: FrontState): void {
+    if (this.fronts.length <= 3) {
+      return;
+    }
+    if (this.rng.next() < DEATH_CHANCE) {
+      front.alive = false;
+    }
+  }
+
+  private tryAddEdge(a: Int3, b: Int3, addedEdges: LatticeEdge[]): void {
     if (!this.withinBounds(a) || !this.withinBounds(b)) {
-      return false;
+      return;
     }
 
     const key = normalizeEdgeKey(a, b);
     if (this.edgeSet.has(key)) {
-      return false;
+      return;
     }
 
     const keyA = pointKey(a);
     const keyB = pointKey(b);
-    const degreeA = this.adjacency.get(keyA)?.size ?? 0;
-    const degreeB = this.adjacency.get(keyB)?.size ?? 0;
-    if (degreeA >= 2 || degreeB >= 2) {
-      return false;
-    }
 
     this.edgeSet.add(key);
 
@@ -339,7 +396,11 @@ export class BismuthSimulator {
 
     this.adjacency.get(keyA)?.add(keyB);
     this.adjacency.get(keyB)?.add(keyA);
-    return true;
+
+    addedEdges.push({
+      a: clonePoint(a),
+      b: clonePoint(b),
+    });
   }
 
   private removeFrontAt(index: number): void {
