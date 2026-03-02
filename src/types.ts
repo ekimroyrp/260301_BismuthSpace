@@ -3,6 +3,7 @@ export interface SimulationParams {
   maxSegments: number;
   segmentsPerStep: number;
   branchChance: number;
+  upwardTurnChance: number;
   newSegmentChance: number;
   deathChance: number;
   groupSpawnChanceScale: number;

@@ -10,6 +10,7 @@ const HORIZONTAL_DIRECTIONS: readonly Int3[] = [
 ];
 
 const DEFAULT_NEW_SEGMENT_CHANCE = 0.1;
+const DEFAULT_UPWARD_TURN_CHANCE = 0.08;
 const DEFAULT_DEATH_CHANCE = 0.01;
 const DEFAULT_GROUP_SPAWN_CHANCE_SCALE = 0.085;
 const DEFAULT_SEGMENT_GROWTH_BIAS = 0.12;
@@ -65,6 +66,11 @@ function sanitizeSimulationParams(params: SimulationParams): SimulationParams {
     maxSegments: clampInt(params.maxSegments, 1, 500000),
     segmentsPerStep: clampInt(params.segmentsPerStep, 1, 256),
     branchChance: clampNumber(params.branchChance, 0, 1),
+    upwardTurnChance: clampNumber(
+      Number.isFinite(params.upwardTurnChance) ? params.upwardTurnChance : DEFAULT_UPWARD_TURN_CHANCE,
+      0,
+      1,
+    ),
     newSegmentChance: clampNumber(
       Number.isFinite(params.newSegmentChance) ? params.newSegmentChance : DEFAULT_NEW_SEGMENT_CHANCE,
       0,
@@ -238,7 +244,7 @@ export class BismuthSimulator {
       layerY: position.y,
       baseDirectionIndex: startDirectionIndex,
       clockwise: this.rng.next() > 0.5,
-      segments: [{ length: seededLength }],
+      segments: [{ length: seededLength, axis: 'horizontal' }],
       initialSegmentLength: baseInitialLength,
       latestHead: clonePoint(position),
       latestEndDirectionIndex: startDirectionIndex,
@@ -253,7 +259,10 @@ export class BismuthSimulator {
     }
 
     if (front.segments.length === 0 || this.rng.next() < this.params.newSegmentChance) {
-      front.segments.push({ length: 0 });
+      front.segments.push({
+        length: 0,
+        axis: this.rng.next() < this.params.upwardTurnChance ? 'up' : 'horizontal',
+      });
     }
 
     const growthDeltaRaw = this.params.segmentGrowthBias + this.rng.next() * this.params.segmentGrowthScale;
@@ -287,10 +296,8 @@ export class BismuthSimulator {
     this.maybeKillFront(front);
 
     front.layerY += LAYER_RISE_PER_LOOP;
-    front.basePosition = {
-      ...front.basePosition,
-      y: front.layerY,
-    };
+    front.basePosition.y += LAYER_RISE_PER_LOOP;
+    front.layerY = front.basePosition.y;
     if (!this.withinBounds(front.basePosition)) {
       front.alive = false;
     }
@@ -308,13 +315,19 @@ export class BismuthSimulator {
 
       // Keep planar stepping quantized to one lattice unit so render spacing tracks pipe thickness exactly.
       const removedSteps = Math.min(1, Math.max(0, Math.floor(removed.length)));
-      const forward = HORIZONTAL_DIRECTIONS[front.baseDirectionIndex];
-      front.basePosition = {
-        x: front.basePosition.x + forward.x * removedSteps,
-        y: front.layerY,
-        z: front.basePosition.z + forward.z * removedSteps,
-      };
-      front.baseDirectionIndex = rotateDirectionIndex(front.baseDirectionIndex, front.clockwise);
+      if (removed.axis === 'up') {
+        front.basePosition.y += removedSteps;
+      } else {
+        const forward = HORIZONTAL_DIRECTIONS[front.baseDirectionIndex];
+        front.basePosition = {
+          x: front.basePosition.x + forward.x * removedSteps,
+          y: front.basePosition.y,
+          z: front.basePosition.z + forward.z * removedSteps,
+        };
+        front.baseDirectionIndex = rotateDirectionIndex(front.baseDirectionIndex, front.clockwise);
+      }
+
+      front.layerY = front.basePosition.y;
 
       if (!this.withinBounds(front.basePosition)) {
         front.alive = false;
@@ -325,34 +338,48 @@ export class BismuthSimulator {
 
   private emitFrontPath(front: FrontState): EmitPathResult {
     let cursorX = front.basePosition.x;
+    let cursorY = front.basePosition.y;
     let cursorZ = front.basePosition.z;
-    const y = front.layerY;
     let directionIndex = front.baseDirectionIndex;
     let hitBounds = false;
     const addedEdges: LatticeEdge[] = [];
 
     for (const segment of front.segments) {
       const steps = Math.max(0, Math.floor(segment.length));
-      const direction = HORIZONTAL_DIRECTIONS[directionIndex];
-      for (let step = 0; step < steps; step += 1) {
-        const a: Int3 = { x: cursorX, y, z: cursorZ };
-        const b: Int3 = {
-          x: cursorX + direction.x,
-          y,
-          z: cursorZ + direction.z,
-        };
+      if (segment.axis === 'up') {
+        for (let step = 0; step < steps; step += 1) {
+          const a: Int3 = { x: cursorX, y: cursorY, z: cursorZ };
+          const b: Int3 = { x: cursorX, y: cursorY + 1, z: cursorZ };
+          if (!this.withinBounds(b)) {
+            hitBounds = true;
+            break;
+          }
+          this.tryAddEdge(a, b, addedEdges);
+          cursorY = b.y;
+        }
+      } else {
+        const direction = HORIZONTAL_DIRECTIONS[directionIndex];
+        for (let step = 0; step < steps; step += 1) {
+          const a: Int3 = { x: cursorX, y: cursorY, z: cursorZ };
+          const b: Int3 = {
+            x: cursorX + direction.x,
+            y: cursorY,
+            z: cursorZ + direction.z,
+          };
 
-        if (!this.withinBounds(b)) {
-          hitBounds = true;
-          break;
+          if (!this.withinBounds(b)) {
+            hitBounds = true;
+            break;
+          }
+
+          this.tryAddEdge(a, b, addedEdges);
+          cursorX = b.x;
+          cursorZ = b.z;
         }
 
-        this.tryAddEdge(a, b, addedEdges);
-        cursorX = b.x;
-        cursorZ = b.z;
+        directionIndex = rotateDirectionIndex(directionIndex, front.clockwise);
       }
 
-      directionIndex = rotateDirectionIndex(directionIndex, front.clockwise);
       if (hitBounds) {
         break;
       }
@@ -360,7 +387,7 @@ export class BismuthSimulator {
 
     return {
       addedEdges,
-      head: { x: cursorX, y, z: cursorZ },
+      head: { x: cursorX, y: cursorY, z: cursorZ },
       endDirectionIndex: directionIndex,
       hitBounds,
     };

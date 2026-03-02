@@ -7,6 +7,7 @@ const BASE_PARAMS: SimulationParams = {
   maxSegments: 500,
   segmentsPerStep: 8,
   branchChance: 0.2,
+  upwardTurnChance: 0.08,
   newSegmentChance: 0.1,
   deathChance: 0.01,
   groupSpawnChanceScale: 0.085,
@@ -67,6 +68,7 @@ describe('BismuthSimulator', () => {
       maxSegments: 2000,
       segmentsPerStep: 24,
       branchChance: 0.25,
+      upwardTurnChance: 0,
     });
 
     while (!simulator.isFinished()) {
@@ -77,5 +79,24 @@ describe('BismuthSimulator', () => {
       const dy = edge.b.y - edge.a.y;
       expect(dy).toBe(0);
     }
+  });
+
+  it('can emit upward 90-degree turns when upward chance is enabled', () => {
+    const simulator = new BismuthSimulator({
+      ...BASE_PARAMS,
+      maxSegments: 1200,
+      segmentsPerStep: 24,
+      branchChance: 0,
+      newSegmentChance: 1,
+      upwardTurnChance: 1,
+      maxActiveFronts: 1,
+    });
+
+    while (!simulator.isFinished()) {
+      simulator.step();
+    }
+
+    const hasVerticalEdge = simulator.getEdges().some((edge) => edge.b.y - edge.a.y > 0);
+    expect(hasVerticalEdge).toBe(true);
   });
 });

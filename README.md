@@ -5,10 +5,10 @@
 ## Features
 
 - True 3D crystal growth simulation with deterministic random seed behavior.
-- CodePen-style segment-chain growth logic with per-front line growth, capped segment history, branch spawning at live heads, and probabilistic front death.
+- CodePen-style segment-chain growth logic with per-front line growth, capped segment history, branch spawning at live heads, probabilistic front death, and optional true +Y span segments.
 - Clustered aggregate growth fronts with branching and occupancy constraints.
 - Two-geometry instanced rendering model for speed: corner cubes + scaled path boxes.
-- Layer output emits horizontal path edges only, avoiding vertical connector segments between layers.
+- Layered path output supports horizontal spans and optional +Y spans while keeping offsets tied to pipe size.
 - Scene renders without ground plane/pedestal geometry for unobstructed crystal framing.
 - Segment trimming logic keeps path boxes fitted between corner cubes at turns.
 - Iridescent bismuth-style material using `MeshPhysicalMaterial` + shader customization.
@@ -42,6 +42,7 @@
 - Growth/shape tuning:
   - `Growth Rate`
   - `Branch Chance`
+  - `Upward Turn Chance`
   - `Max Active Fronts`
   - `Initial Loop Size`
   - `New Segment Chance`

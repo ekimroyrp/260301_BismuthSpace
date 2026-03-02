@@ -56,7 +56,11 @@ export function computeTrimmedSegmentLength(
 ): number {
   const startTrim = startType === 'turn' ? cornerInset : 0;
   const endTrim = endType === 'turn' ? cornerInset : 0;
-  return Math.max(0, rawLength - startTrim - endTrim);
+  const totalTrim = startTrim + endTrim;
+  if (totalTrim >= rawLength - 1e-6) {
+    return rawLength;
+  }
+  return Math.max(0, rawLength - totalTrim);
 }
 
 export interface PipeInstanceBuildResult {
@@ -152,8 +156,12 @@ export function buildPipeInstanceMatrices(
       return;
     }
 
-    const startTrim = typeA === 'turn' ? options.cornerInset : 0;
-    const endTrim = typeB === 'turn' ? options.cornerInset : 0;
+    let startTrim = typeA === 'turn' ? options.cornerInset : 0;
+    let endTrim = typeB === 'turn' ? options.cornerInset : 0;
+    if (startTrim + endTrim >= rawLength - 1e-6) {
+      startTrim = 0;
+      endTrim = 0;
+    }
 
     const trimmedStart = start.clone().addScaledVector(direction, startTrim);
     const trimmedEnd = end.clone().addScaledVector(direction, -endTrim);

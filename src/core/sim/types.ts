@@ -21,6 +21,7 @@ export interface SimulatorSnapshot {
 
 export interface FrontSegmentState {
   length: number;
+  axis: 'horizontal' | 'up';
 }
 
 export interface FrontState {

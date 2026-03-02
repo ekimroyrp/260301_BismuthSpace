@@ -37,6 +37,8 @@ interface UiElements {
   growthRateValue: HTMLSpanElement;
   branchChance: HTMLInputElement;
   branchChanceValue: HTMLSpanElement;
+  upwardTurnChance: HTMLInputElement;
+  upwardTurnChanceValue: HTMLSpanElement;
   maxFronts: HTMLInputElement;
   maxFrontsValue: HTMLSpanElement;
   initialLoop: HTMLInputElement;
@@ -68,6 +70,7 @@ const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
   maxSegments: 80000,
   segmentsPerStep: 8,
   branchChance: 0.18,
+  upwardTurnChance: 0.08,
   newSegmentChance: 0.1,
   deathChance: 0.01,
   groupSpawnChanceScale: 0.083,
@@ -371,6 +374,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const growthRateValue = document.getElementById('growth-rate-value');
     const branchChance = document.getElementById('branch-chance');
     const branchChanceValue = document.getElementById('branch-chance-value');
+    const upwardTurnChance = document.getElementById('upward-turn-chance');
+    const upwardTurnChanceValue = document.getElementById('upward-turn-chance-value');
     const maxFronts = document.getElementById('max-fronts');
     const maxFrontsValue = document.getElementById('max-fronts-value');
     const initialLoop = document.getElementById('initial-loop');
@@ -410,6 +415,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       !(growthRateValue instanceof HTMLSpanElement) ||
       !(branchChance instanceof HTMLInputElement) ||
       !(branchChanceValue instanceof HTMLSpanElement) ||
+      !(upwardTurnChance instanceof HTMLInputElement) ||
+      !(upwardTurnChanceValue instanceof HTMLSpanElement) ||
       !(maxFronts instanceof HTMLInputElement) ||
       !(maxFrontsValue instanceof HTMLSpanElement) ||
       !(initialLoop instanceof HTMLInputElement) ||
@@ -452,6 +459,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       growthRateValue,
       branchChance,
       branchChanceValue,
+      upwardTurnChance,
+      upwardTurnChanceValue,
       maxFronts,
       maxFrontsValue,
       initialLoop,
@@ -490,6 +499,16 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       this.setSimulationParams({ branchChance: value });
       this.reset();
     });
+
+    this.bindRange(
+      this.ui.upwardTurnChance,
+      this.ui.upwardTurnChanceValue,
+      (value) => value.toFixed(3),
+      (value) => {
+        this.setSimulationParams({ upwardTurnChance: value });
+        this.reset();
+      },
+    );
 
     this.bindRange(this.ui.maxFronts, this.ui.maxFrontsValue, (value) => `${Math.round(value)}`, (value) => {
       this.setSimulationParams({ maxActiveFronts: Math.round(value) });
@@ -730,6 +749,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       maxSegments: MathUtils.clamp(Math.round(params.maxSegments), 1, 500000),
       segmentsPerStep: MathUtils.clamp(Math.round(params.segmentsPerStep), 1, 256),
       branchChance: MathUtils.clamp(params.branchChance, 0, 1),
+      upwardTurnChance: MathUtils.clamp(params.upwardTurnChance, 0, 1),
       newSegmentChance: MathUtils.clamp(params.newSegmentChance, 0, 1),
       deathChance: MathUtils.clamp(params.deathChance, 0, 1),
       groupSpawnChanceScale: MathUtils.clamp(params.groupSpawnChanceScale, 0, 1),
