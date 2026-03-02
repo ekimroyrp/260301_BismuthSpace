@@ -23,6 +23,7 @@ interface EmitPathResult {
   addedEdges: LatticeEdge[];
   head: Int3;
   endDirectionIndex: number;
+  upwardStepCount: number;
   hitBounds: boolean;
 }
 
@@ -295,8 +296,10 @@ export class BismuthSimulator {
     this.maybeSpawnBranch(front, emitResult.head);
     this.maybeKillFront(front);
 
-    front.layerY += LAYER_RISE_PER_LOOP;
-    front.basePosition.y += LAYER_RISE_PER_LOOP;
+    // Prevent doubled vertical spacing: if this path already emitted any +Y rise, skip the extra loop rise.
+    const additionalLoopRise = emitResult.upwardStepCount > 0 ? 0 : LAYER_RISE_PER_LOOP;
+    front.layerY += additionalLoopRise;
+    front.basePosition.y += additionalLoopRise;
     front.layerY = front.basePosition.y;
     if (!this.withinBounds(front.basePosition)) {
       front.alive = false;
@@ -341,11 +344,13 @@ export class BismuthSimulator {
     let cursorY = front.basePosition.y;
     let cursorZ = front.basePosition.z;
     let directionIndex = front.baseDirectionIndex;
+    let upwardStepCount = 0;
     let hitBounds = false;
     const addedEdges: LatticeEdge[] = [];
 
     for (const segment of front.segments) {
-      const steps = Math.max(0, Math.floor(segment.length));
+      const rawSteps = Math.max(0, Math.floor(segment.length));
+      const steps = rawSteps;
       if (segment.axis === 'up') {
         for (let step = 0; step < steps; step += 1) {
           const a: Int3 = { x: cursorX, y: cursorY, z: cursorZ };
@@ -356,6 +361,7 @@ export class BismuthSimulator {
           }
           this.tryAddEdge(a, b, addedEdges);
           cursorY = b.y;
+          upwardStepCount += 1;
         }
       } else {
         const direction = HORIZONTAL_DIRECTIONS[directionIndex];
@@ -389,6 +395,7 @@ export class BismuthSimulator {
       addedEdges,
       head: { x: cursorX, y: cursorY, z: cursorZ },
       endDirectionIndex: directionIndex,
+      upwardStepCount,
       hitBounds,
     };
   }
