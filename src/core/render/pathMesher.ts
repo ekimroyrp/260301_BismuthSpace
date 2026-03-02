@@ -9,6 +9,10 @@ function pointKey(point: Int3): string {
   return `${point.x},${point.y},${point.z}`;
 }
 
+function edgeKeyByVertexKeys(aKey: string, bKey: string): string {
+  return aKey < bKey ? `${aKey}|${bKey}` : `${bKey}|${aKey}`;
+}
+
 function parsePointKey(key: string): Int3 {
   const [x, y, z] = key.split(',').map((entry) => Number.parseInt(entry, 10));
   return { x, y, z };
@@ -118,15 +122,18 @@ export function buildPipeInstanceMatrices(
   const quaternion = new Quaternion();
   const scale = new Vector3();
   const matrix = new Matrix4();
+  const visitedRunEdges = new Set<string>();
 
-  for (const edge of edges) {
-    const keyA = pointKey(edge.a);
-    const keyB = pointKey(edge.b);
+  const addStraightRunMatrix = (startKey: string, endKey: string): void => {
+    const pointA = vertices.get(startKey) ?? parsePointKey(startKey);
+    const pointB = vertices.get(endKey) ?? parsePointKey(endKey);
+    const keyA = pointKey(pointA);
+    const keyB = pointKey(pointB);
     const typeA = vertexTypes.get(keyA) ?? 'isolated';
     const typeB = vertexTypes.get(keyB) ?? 'isolated';
 
-    start.copy(toVector3(edge.a));
-    end.copy(toVector3(edge.b));
+    start.copy(toVector3(pointA));
+    end.copy(toVector3(pointB));
     start.x *= planarStepSize;
     start.y *= layerStepHeight;
     start.z *= planarStepSize;
@@ -136,13 +143,13 @@ export function buildPipeInstanceMatrices(
     direction.subVectors(end, start);
     const rawLength = direction.length();
     if (rawLength <= 1e-6) {
-      continue;
+      return;
     }
 
     direction.multiplyScalar(1 / rawLength);
     const trimmedLength = computeTrimmedSegmentLength(rawLength, typeA, typeB, options.cornerInset);
     if (trimmedLength <= 1e-6) {
-      continue;
+      return;
     }
 
     const startTrim = typeA === 'turn' ? options.cornerInset : 0;
@@ -156,6 +163,63 @@ export function buildPipeInstanceMatrices(
     scale.set(1, trimmedLength, 1);
     matrix.compose(midpoint, quaternion, scale);
     straightMatrices.push(matrix.clone());
+  };
+
+  const walkRun = (startKey: string, nextKey: string): string => {
+    let previousKey = startKey;
+    let currentKey = nextKey;
+    visitedRunEdges.add(edgeKeyByVertexKeys(previousKey, currentKey));
+
+    while (true) {
+      const currentType = vertexTypes.get(currentKey) ?? 'isolated';
+      if (currentType !== 'straight') {
+        return currentKey;
+      }
+
+      const neighbors = adjacency.get(currentKey);
+      if (!neighbors || neighbors.size !== 2) {
+        return currentKey;
+      }
+
+      const [neighborA, neighborB] = Array.from(neighbors);
+      const followKey = neighborA === previousKey ? neighborB : neighborA;
+      const followEdgeKey = edgeKeyByVertexKeys(currentKey, followKey);
+      if (visitedRunEdges.has(followEdgeKey)) {
+        return currentKey;
+      }
+
+      visitedRunEdges.add(followEdgeKey);
+      previousKey = currentKey;
+      currentKey = followKey;
+    }
+  };
+
+  for (const [startKey, neighbors] of adjacency) {
+    const startType = vertexTypes.get(startKey) ?? 'isolated';
+    if (startType === 'straight') {
+      continue;
+    }
+
+    for (const nextKey of neighbors) {
+      const runEdgeKey = edgeKeyByVertexKeys(startKey, nextKey);
+      if (visitedRunEdges.has(runEdgeKey)) {
+        continue;
+      }
+      const endKey = walkRun(startKey, nextKey);
+      addStraightRunMatrix(startKey, endKey);
+    }
+  }
+
+  // Fallback for any remaining unvisited connections (defensive for rare all-straight components).
+  for (const [startKey, neighbors] of adjacency) {
+    for (const nextKey of neighbors) {
+      const runEdgeKey = edgeKeyByVertexKeys(startKey, nextKey);
+      if (visitedRunEdges.has(runEdgeKey)) {
+        continue;
+      }
+      const endKey = walkRun(startKey, nextKey);
+      addStraightRunMatrix(startKey, endKey);
+    }
   }
 
   for (const [key, type] of vertexTypes) {
