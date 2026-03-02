@@ -76,7 +76,7 @@ interface UiElements {
 }
 
 const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
-  seed: 260301,
+  seed: 351107,
   maxSegments: 80000,
   segmentsPerStep: 8,
   branchChance: 0.18,
@@ -168,12 +168,12 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     this.camera = new PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 12000);
-    this.camera.position.set(24, 18, 24);
+    this.camera.position.set(36, 36, 36);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = false;
     this.controls.maxDistance = 10000;
-    this.controls.target.set(0, 6, 0);
+    this.controls.target.set(0, 18, 0);
     applyOrbitMouseMapping(this.controls);
 
     this.setupStage();
@@ -960,6 +960,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private updateRunButtons(): void {
     this.ui.start.textContent = this.running ? 'Stop' : 'Start';
     this.ui.start.setAttribute('aria-label', this.running ? 'Stop simulation' : 'Start simulation');
+    this.ui.start.classList.toggle('is-start-state', !this.running);
+    this.ui.start.classList.toggle('is-stop-state', this.running);
   }
 
   private updateRangeProgress(input: HTMLInputElement): void {
