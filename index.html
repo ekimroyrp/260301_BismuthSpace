@@ -17,19 +17,25 @@
     </style>
   </head>
   <body>
-    <div id="ui-panel">
-      <div id="ui-handle">
+    <div id="ui-panel" class="apple-panel">
+      <div id="ui-handle" class="panel-drag-handle">
+        <span class="panel-drag-grip">••••••••</span>
         <button
           type="button"
           id="collapse-toggle"
-          class="collapse-button"
+          class="collapse-button panel-collapse-toggle"
           aria-label="Collapse controls"
           aria-expanded="true"
         >
           <span class="collapse-icon">v</span>
         </button>
       </div>
-      <div class="ui-body">
+      <div class="ui-body panel-sections">
+        <section class="panel-section">
+          <div class="panel-section-header">
+            <span class="panel-section-label">Simulation</span>
+          </div>
+          <div class="panel-section-content panel-controls-stack">
         <div class="control-hint">
           <div>Wheel = Zoom</div>
           <div>MMB = Pan</div>
@@ -166,6 +172,15 @@
           <input type="range" id="pipe-outer-size" min="0.08" max="3" step="0.01" value="0.22" />
         </label>
 
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-section-header">
+            <span class="panel-section-label">Material</span>
+          </div>
+          <div class="panel-section-content panel-controls-stack">
+
         <div class="control control-grid-2">
           <label class="control compact">
             <div class="control-row">
@@ -204,6 +219,8 @@
           </div>
           <input type="range" id="reflectiveness" min="0" max="1" step="0.01" value="0.25" />
         </label>
+          </div>
+        </section>
       </div>
       <div id="ui-handle-bottom"></div>
     </div>
