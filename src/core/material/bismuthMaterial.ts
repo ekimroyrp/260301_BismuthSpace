@@ -1,4 +1,4 @@
-import { Color, MeshPhysicalMaterial } from 'three';
+import { Color, MathUtils, MeshPhysicalMaterial } from 'three';
 import type { MaterialParams } from '../../types';
 
 export interface BismuthMaterialController {
@@ -28,6 +28,16 @@ function normalizeSeed(seed: number): number {
   return value / 1000000;
 }
 
+function applyReflectiveness(material: MeshPhysicalMaterial, reflectiveness: number): void {
+  const t = MathUtils.clamp(reflectiveness, 0, 1);
+  material.roughness = MathUtils.lerp(0.62, 0.08, t);
+  material.envMapIntensity = MathUtils.lerp(0.15, 1.75, t);
+  material.clearcoat = MathUtils.lerp(0, 0.55, t);
+  material.clearcoatRoughness = MathUtils.lerp(0.75, 0.05, t);
+  material.iridescence = MathUtils.lerp(0.3, 0.85, t);
+  material.needsUpdate = true;
+}
+
 export function createBismuthMaterial(initialParams: MaterialParams, seed: number): BismuthMaterialController {
   const material = new MeshPhysicalMaterial({
     color: new Color('#f5f7fa'),
@@ -47,6 +57,7 @@ export function createBismuthMaterial(initialParams: MaterialParams, seed: numbe
     iridescenceStrength: initialParams.iridescenceStrength,
     hueBandFrequency: initialParams.hueBandFrequency,
     huePhaseSpeed: initialParams.huePhaseSpeed,
+    reflectiveness: MathUtils.clamp(initialParams.reflectiveness ?? 1, 0, 1),
   };
 
   const uniforms: UniformState = {
@@ -207,6 +218,7 @@ diffuseColor.rgb = mix(gradientColor, iridescentOverGradient, 0.85 * iriStrength
     uniforms.uIriStrength.value = params.iridescenceStrength;
     uniforms.uHueBandFreq.value = params.hueBandFrequency;
     uniforms.uHuePhaseSpeed.value = params.huePhaseSpeed;
+    applyReflectiveness(material, params.reflectiveness);
     if (shaderRef) {
       shaderRef.uniforms.uIriStrength = uniforms.uIriStrength;
       shaderRef.uniforms.uHueBandFreq = uniforms.uHueBandFreq;
@@ -224,6 +236,7 @@ diffuseColor.rgb = mix(gradientColor, iridescentOverGradient, 0.85 * iriStrength
       params.iridescenceStrength = partial.iridescenceStrength ?? params.iridescenceStrength;
       params.hueBandFrequency = partial.hueBandFrequency ?? params.hueBandFrequency;
       params.huePhaseSpeed = partial.huePhaseSpeed ?? params.huePhaseSpeed;
+      params.reflectiveness = MathUtils.clamp(partial.reflectiveness ?? params.reflectiveness, 0, 1);
       updateUniforms();
     },
     setSeed(nextSeed: number): void {

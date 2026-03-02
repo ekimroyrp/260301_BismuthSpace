@@ -10,6 +10,8 @@ export class MatrixInstancer {
     this.mesh.count = 0;
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
+    // Keep instanced updates cheap during live growth; we fit camera/shadows explicitly elsewhere.
+    this.mesh.frustumCulled = false;
   }
 
   setMatrices(matrices: readonly Matrix4[], colors?: readonly Color[]): void {
@@ -25,7 +27,6 @@ export class MatrixInstancer {
     if (colors && this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
     }
-    this.mesh.computeBoundingSphere();
   }
 
   setColorsByLerp(factors: readonly number[], startColor: Color, endColor: Color): void {

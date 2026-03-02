@@ -24,7 +24,7 @@ import { createMiterCornerGeometry, createStraightPipeGeometry } from '../core/r
 import { MiterCornerInstancer } from '../core/render/miterCornerInstancer';
 import { StraightPipeInstancer } from '../core/render/straightPipeInstancer';
 import { BismuthSimulator } from '../core/sim/bismuthSimulator';
-import type { LatticeEdge } from '../core/sim/types';
+import type { Int3 } from '../core/sim/types';
 import type { BismuthFormsApp, MaterialParams, PipeParams, SimulationParams } from '../types';
 
 interface UiElements {
@@ -69,6 +69,8 @@ interface UiElements {
   iridescenceStrengthValue: HTMLSpanElement;
   hueBandFrequency: HTMLInputElement;
   hueBandFrequencyValue: HTMLSpanElement;
+  reflectiveness: HTMLInputElement;
+  reflectivenessValue: HTMLSpanElement;
 }
 
 const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
@@ -98,10 +100,13 @@ const DEFAULT_MATERIAL_PARAMS: MaterialParams = {
   iridescenceStrength: 1.05,
   hueBandFrequency: 1.25,
   huePhaseSpeed: 0,
+  reflectiveness: 0.25,
 };
 
 const DEFAULT_BRANCH_GRADIENT_START = '#ffffff';
 const DEFAULT_BRANCH_GRADIENT_END = '#000000';
+const LIVE_REMESH_INTERVAL_SECONDS = 0.08;
+const LIVE_REMESH_EDGE_BATCH = 384;
 
 class BismuthFormsAppImpl implements BismuthFormsApp {
   private readonly canvas: HTMLCanvasElement;
@@ -123,6 +128,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private readonly scratchVectorA = new Vector3();
   private straightColorFactors: number[] = [];
   private cornerColorFactors: number[] = [];
+  private pendingLiveRebuildEdges = 0;
+  private lastLiveRebuildSeconds = 0;
   private running = false;
   private animationFrame = 0;
 
@@ -165,6 +172,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
     this.rebuildInstancers();
     this.rebuildAllMeshInstances();
+    this.lastLiveRebuildSeconds = this.clock.getElapsedTime();
+    this.pendingLiveRebuildEdges = 0;
     this.setupUi();
     this.setupPanelInteractions();
     this.updateRunButtons();
@@ -193,7 +202,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   reset(): void {
     this.simulator.reset(this.simulationParams.seed);
     this.materialController.setSeed(this.simulationParams.seed);
+    this.pendingLiveRebuildEdges = 0;
     this.rebuildAllMeshInstances();
+    this.lastLiveRebuildSeconds = this.clock.getElapsedTime();
     this.renderFrame();
   }
 
@@ -338,7 +349,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       return;
     }
 
-    const meshData = buildPipeInstanceMatrices(this.simulator.getEdges(), {
+    const edges = this.simulator.getEdges();
+    const meshData = buildPipeInstanceMatrices(edges, {
       cornerInset: this.pipeParams.cornerInset,
       layerStepHeight: this.pipeParams.pipeOuterSize,
       planarStepSize: this.pipeParams.pipeOuterSize,
@@ -350,7 +362,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.cornerInstancer.setMatrices(meshData.cornerMatrices, meshData.cornerColors);
     this.straightColorFactors = meshData.straightColorFactors;
     this.cornerColorFactors = meshData.cornerColorFactors;
-    this.updateKeyLightShadowFromEdges(this.simulator.getEdges());
+    this.updateKeyLightShadowFromBounds(this.simulator.getEdgeBounds());
   }
 
   private refreshGradientColorsOnly(): void {
@@ -365,43 +377,28 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.cornerInstancer.setColorsByLerp(this.cornerColorFactors, this.branchGradientStart, this.branchGradientEnd);
   }
 
-  private updateKeyLightShadowFromEdges(edges: readonly LatticeEdge[]): void {
+  private updateKeyLightShadowFromBounds(edgeBounds: { min: Int3; max: Int3 } | null): void {
     if (!this.keyLight) {
       return;
     }
 
-    let minX = Number.POSITIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let minZ = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    let maxZ = Number.NEGATIVE_INFINITY;
-
     const planarScale = this.pipeParams.pipeOuterSize;
     const layerScale = this.pipeParams.pipeOuterSize;
     const padding = Math.max(1.5, this.pipeParams.pipeOuterSize * 5);
+    let minX = -6;
+    let minY = 0;
+    let minZ = -6;
+    let maxX = 6;
+    let maxY = 8;
+    let maxZ = 6;
 
-    const includePoint = (x: number, y: number, z: number): void => {
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      minZ = Math.min(minZ, z);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-      maxZ = Math.max(maxZ, z);
-    };
-
-    for (const edge of edges) {
-      includePoint(edge.a.x * planarScale, edge.a.y * layerScale, edge.a.z * planarScale);
-      includePoint(edge.b.x * planarScale, edge.b.y * layerScale, edge.b.z * planarScale);
-    }
-
-    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(minZ)) {
-      minX = -6;
-      minY = 0;
-      minZ = -6;
-      maxX = 6;
-      maxY = 8;
-      maxZ = 6;
+    if (edgeBounds) {
+      minX = edgeBounds.min.x * planarScale;
+      minY = edgeBounds.min.y * layerScale;
+      minZ = edgeBounds.min.z * planarScale;
+      maxX = edgeBounds.max.x * planarScale;
+      maxY = edgeBounds.max.y * layerScale;
+      maxZ = edgeBounds.max.z * planarScale;
     }
 
     const centerX = (minX + maxX) * 0.5;
@@ -434,14 +431,30 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private animationLoop = (): void => {
     this.animationFrame = requestAnimationFrame(this.animationLoop);
     this.controls.update();
-    this.materialController.setTime(this.clock.getElapsedTime());
+    const elapsedSeconds = this.clock.getElapsedTime();
+    this.materialController.setTime(elapsedSeconds);
 
     if (this.running) {
       const step = this.simulator.step(this.simulationParams.segmentsPerStep);
       if (step.addedEdges.length > 0) {
-        this.rebuildAllMeshInstances();
+        this.pendingLiveRebuildEdges += step.addedEdges.length;
+        const elapsedSinceRebuild = elapsedSeconds - this.lastLiveRebuildSeconds;
+        const shouldRebuild =
+          elapsedSinceRebuild >= LIVE_REMESH_INTERVAL_SECONDS ||
+          this.pendingLiveRebuildEdges >= LIVE_REMESH_EDGE_BATCH ||
+          step.isFinished;
+        if (shouldRebuild) {
+          this.rebuildAllMeshInstances();
+          this.pendingLiveRebuildEdges = 0;
+          this.lastLiveRebuildSeconds = elapsedSeconds;
+        }
       }
       if (step.isFinished) {
+        if (this.pendingLiveRebuildEdges > 0) {
+          this.rebuildAllMeshInstances();
+          this.pendingLiveRebuildEdges = 0;
+          this.lastLiveRebuildSeconds = elapsedSeconds;
+        }
         this.running = false;
         this.updateRunButtons();
       }
@@ -509,6 +522,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const iridescenceStrengthValue = document.getElementById('iridescence-strength-value');
     const hueBandFrequency = document.getElementById('hue-band-frequency');
     const hueBandFrequencyValue = document.getElementById('hue-band-frequency-value');
+    const reflectiveness = document.getElementById('reflectiveness');
+    const reflectivenessValue = document.getElementById('reflectiveness-value');
 
     if (
       !(panel instanceof HTMLDivElement) ||
@@ -551,7 +566,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       !(iridescenceStrength instanceof HTMLInputElement) ||
       !(iridescenceStrengthValue instanceof HTMLSpanElement) ||
       !(hueBandFrequency instanceof HTMLInputElement) ||
-      !(hueBandFrequencyValue instanceof HTMLSpanElement)
+      !(hueBandFrequencyValue instanceof HTMLSpanElement) ||
+      !(reflectiveness instanceof HTMLInputElement) ||
+      !(reflectivenessValue instanceof HTMLSpanElement)
     ) {
       throw new Error('UI elements missing or invalid in index.html.');
     }
@@ -598,6 +615,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       iridescenceStrengthValue,
       hueBandFrequency,
       hueBandFrequencyValue,
+      reflectiveness,
+      reflectivenessValue,
     };
   }
 
@@ -719,6 +738,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
     this.bindRange(this.ui.hueBandFrequency, this.ui.hueBandFrequencyValue, (value) => value.toFixed(2), (value) => {
       this.setMaterialParams({ hueBandFrequency: value });
+    });
+    this.bindRange(this.ui.reflectiveness, this.ui.reflectivenessValue, (value) => value.toFixed(2), (value) => {
+      this.setMaterialParams({ reflectiveness: value });
     });
 
     this.addDomListener(this.ui.start, 'click', () => this.start());

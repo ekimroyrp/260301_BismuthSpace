@@ -25,6 +25,7 @@ export interface MaterialParams {
   iridescenceStrength: number;
   hueBandFrequency: number;
   huePhaseSpeed: number;
+  reflectiveness: number;
 }
 
 export interface BismuthFormsApp {

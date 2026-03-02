@@ -27,6 +27,11 @@ interface EmitPathResult {
   hitBounds: boolean;
 }
 
+interface EdgeBounds {
+  min: Int3;
+  max: Int3;
+}
+
 function clonePoint(point: Int3): Int3 {
   return { x: point.x, y: point.y, z: point.z };
 }
@@ -116,6 +121,9 @@ export class BismuthSimulator {
   private readonly edges: LatticeEdge[] = [];
   private readonly edgeSet = new Set<string>();
   private readonly adjacency = new Map<string, Set<string>>();
+  private readonly boundsMin: Int3 = { x: 0, y: 0, z: 0 };
+  private readonly boundsMax: Int3 = { x: 0, y: 0, z: 0 };
+  private hasEdgeBounds = false;
   private readonly fronts: FrontState[] = [];
   private frontCursor = 0;
   private nextFrontId = 1;
@@ -143,6 +151,7 @@ export class BismuthSimulator {
     this.edges.length = 0;
     this.edgeSet.clear();
     this.adjacency.clear();
+    this.hasEdgeBounds = false;
     this.fronts.length = 0;
     this.frontCursor = 0;
     this.nextFrontId = 1;
@@ -152,6 +161,16 @@ export class BismuthSimulator {
 
   getEdges(): readonly LatticeEdge[] {
     return this.edges;
+  }
+
+  getEdgeBounds(): EdgeBounds | null {
+    if (!this.hasEdgeBounds) {
+      return null;
+    }
+    return {
+      min: clonePoint(this.boundsMin),
+      max: clonePoint(this.boundsMax),
+    };
   }
 
   getSignatureSample(sampleCount = 64): string {
@@ -481,6 +500,28 @@ export class BismuthSimulator {
       b: clonePoint(b),
       branchId,
     });
+    this.includeBoundsPoint(a);
+    this.includeBoundsPoint(b);
+  }
+
+  private includeBoundsPoint(point: Int3): void {
+    if (!this.hasEdgeBounds) {
+      this.boundsMin.x = point.x;
+      this.boundsMin.y = point.y;
+      this.boundsMin.z = point.z;
+      this.boundsMax.x = point.x;
+      this.boundsMax.y = point.y;
+      this.boundsMax.z = point.z;
+      this.hasEdgeBounds = true;
+      return;
+    }
+
+    this.boundsMin.x = Math.min(this.boundsMin.x, point.x);
+    this.boundsMin.y = Math.min(this.boundsMin.y, point.y);
+    this.boundsMin.z = Math.min(this.boundsMin.z, point.z);
+    this.boundsMax.x = Math.max(this.boundsMax.x, point.x);
+    this.boundsMax.y = Math.max(this.boundsMax.y, point.y);
+    this.boundsMax.z = Math.max(this.boundsMax.z, point.z);
   }
 
   private removeFrontAt(index: number): void {
