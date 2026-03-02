@@ -31,6 +31,7 @@ function normalizeSeed(seed: number): number {
 export function createBismuthMaterial(initialParams: MaterialParams, seed: number): BismuthMaterialController {
   const material = new MeshPhysicalMaterial({
     color: new Color('#f5f7fa'),
+    flatShading: true,
     metalness: 1,
     roughness: 0.08,
     clearcoat: 0.55,

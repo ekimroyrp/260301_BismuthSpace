@@ -5,10 +5,13 @@ import {
   Color,
   DirectionalLight,
   MathUtils,
+  OrthographicCamera,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
   Scene,
   SRGBColorSpace,
+  Vector3,
   WebGLRenderTarget,
   WebGLRenderer,
 } from 'three';
@@ -21,6 +24,7 @@ import { createMiterCornerGeometry, createStraightPipeGeometry } from '../core/r
 import { MiterCornerInstancer } from '../core/render/miterCornerInstancer';
 import { StraightPipeInstancer } from '../core/render/straightPipeInstancer';
 import { BismuthSimulator } from '../core/sim/bismuthSimulator';
+import type { LatticeEdge } from '../core/sim/types';
 import type { BismuthFormsApp, MaterialParams, PipeParams, SimulationParams } from '../types';
 
 interface UiElements {
@@ -96,8 +100,8 @@ const DEFAULT_MATERIAL_PARAMS: MaterialParams = {
   huePhaseSpeed: 0,
 };
 
-const DEFAULT_BRANCH_GRADIENT_START = '#5de9ff';
-const DEFAULT_BRANCH_GRADIENT_END = '#ff5ac0';
+const DEFAULT_BRANCH_GRADIENT_START = '#ffffff';
+const DEFAULT_BRANCH_GRADIENT_END = '#000000';
 
 class BismuthFormsAppImpl implements BismuthFormsApp {
   private readonly canvas: HTMLCanvasElement;
@@ -114,6 +118,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private environmentTarget: WebGLRenderTarget | null = null;
   private straightInstancer: StraightPipeInstancer | null = null;
   private cornerInstancer: MiterCornerInstancer | null = null;
+  private keyLight: DirectionalLight | null = null;
+  private readonly keyLightDirection = new Vector3(0.58, 0.74, 0.34).normalize();
+  private readonly scratchVectorA = new Vector3();
   private straightColorFactors: number[] = [];
   private cornerColorFactors: number[] = [];
   private running = false;
@@ -137,6 +144,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.24;
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     this.camera = new PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 12000);
     this.camera.position.set(24, 18, 24);
@@ -248,31 +256,35 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   }
 
   private setupStage(): void {
-    const ambient = new AmbientLight(0xffffff, 0.36);
+    const ambient = new AmbientLight(0xffffff, 0.12);
     this.scene.add(ambient);
 
-    const key = new DirectionalLight(0xffffff, 1.7);
-    key.position.set(20, 30, 16);
+    const key = new DirectionalLight(0xffffff, 2.25);
+    key.position.set(24, 30, 14);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.set(4096, 4096);
     key.shadow.camera.near = 0.5;
-    key.shadow.camera.far = 260;
-    key.shadow.camera.left = -45;
-    key.shadow.camera.right = 45;
-    key.shadow.camera.top = 45;
-    key.shadow.camera.bottom = -45;
+    key.shadow.camera.far = 220;
+    key.shadow.camera.left = -22;
+    key.shadow.camera.right = 22;
+    key.shadow.camera.top = 22;
+    key.shadow.camera.bottom = -22;
     key.shadow.bias = -0.00008;
+    key.shadow.normalBias = 0.0025;
+    key.shadow.radius = 1.5;
     this.scene.add(key);
+    this.scene.add(key.target);
+    this.keyLight = key;
 
-    const fill = new DirectionalLight(new Color('#fff4e4'), 0.95);
+    const fill = new DirectionalLight(new Color('#fff4e4'), 0.28);
     fill.position.set(-22, 14, 10);
     this.scene.add(fill);
 
-    const coolRim = new DirectionalLight(new Color('#d6e7ff'), 0.78);
+    const coolRim = new DirectionalLight(new Color('#d6e7ff'), 0.42);
     coolRim.position.set(12, 12, -24);
     this.scene.add(coolRim);
 
-    const top = new DirectionalLight(0xffffff, 0.48);
+    const top = new DirectionalLight(0xffffff, 0.18);
     top.position.set(0, 42, 0);
     this.scene.add(top);
   }
@@ -338,6 +350,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.cornerInstancer.setMatrices(meshData.cornerMatrices, meshData.cornerColors);
     this.straightColorFactors = meshData.straightColorFactors;
     this.cornerColorFactors = meshData.cornerColorFactors;
+    this.updateKeyLightShadowFromEdges(this.simulator.getEdges());
   }
 
   private refreshGradientColorsOnly(): void {
@@ -350,6 +363,72 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       this.branchGradientEnd,
     );
     this.cornerInstancer.setColorsByLerp(this.cornerColorFactors, this.branchGradientStart, this.branchGradientEnd);
+  }
+
+  private updateKeyLightShadowFromEdges(edges: readonly LatticeEdge[]): void {
+    if (!this.keyLight) {
+      return;
+    }
+
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let minZ = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    let maxZ = Number.NEGATIVE_INFINITY;
+
+    const planarScale = this.pipeParams.pipeOuterSize;
+    const layerScale = this.pipeParams.pipeOuterSize;
+    const padding = Math.max(1.5, this.pipeParams.pipeOuterSize * 5);
+
+    const includePoint = (x: number, y: number, z: number): void => {
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    };
+
+    for (const edge of edges) {
+      includePoint(edge.a.x * planarScale, edge.a.y * layerScale, edge.a.z * planarScale);
+      includePoint(edge.b.x * planarScale, edge.b.y * layerScale, edge.b.z * planarScale);
+    }
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(minZ)) {
+      minX = -6;
+      minY = 0;
+      minZ = -6;
+      maxX = 6;
+      maxY = 8;
+      maxZ = 6;
+    }
+
+    const centerX = (minX + maxX) * 0.5;
+    const centerY = (minY + maxY) * 0.5;
+    const centerZ = (minZ + maxZ) * 0.5;
+    const extentX = (maxX - minX) * 0.5 + padding;
+    const extentY = (maxY - minY) * 0.5 + padding;
+    const extentZ = (maxZ - minZ) * 0.5 + padding;
+    const radius = Math.max(8, extentX, extentY, extentZ);
+    const distance = Math.max(24, radius * 2.45);
+
+    this.keyLight.target.position.set(centerX, centerY, centerZ);
+    this.keyLight.position.copy(
+      this.scratchVectorA.copy(this.keyLightDirection).multiplyScalar(distance).add(this.keyLight.target.position),
+    );
+    this.keyLight.target.updateMatrixWorld();
+
+    this.keyLight.shadow.camera.near = Math.max(0.1, distance * 0.12);
+    this.keyLight.shadow.camera.far = Math.max(40, distance * 2.4);
+    const shadowCamera = this.keyLight.shadow.camera as OrthographicCamera;
+    const orthoHalf = radius * 1.06;
+    shadowCamera.left = -orthoHalf;
+    shadowCamera.right = orthoHalf;
+    shadowCamera.top = orthoHalf;
+    shadowCamera.bottom = -orthoHalf;
+    shadowCamera.updateProjectionMatrix();
+    this.keyLight.shadow.needsUpdate = true;
   }
 
   private animationLoop = (): void => {
