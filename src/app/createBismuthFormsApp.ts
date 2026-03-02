@@ -109,6 +109,9 @@ const DEFAULT_BRANCH_GRADIENT_START = '#ffffff';
 const DEFAULT_BRANCH_GRADIENT_END = '#000000';
 const LIVE_REMESH_INTERVAL_SECONDS = 0.08;
 const LIVE_REMESH_EDGE_BATCH = 384;
+const KEY_SHADOW_MAP_SIZE = 2048;
+const INTERACTION_PIXEL_RATIO_SCALE = 0.67;
+const INTERACTION_MIN_PIXEL_RATIO = 0.75;
 
 class BismuthFormsAppImpl implements BismuthFormsApp {
   private readonly canvas: HTMLCanvasElement;
@@ -134,6 +137,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private lastLiveRebuildSeconds = 0;
   private running = false;
   private animationFrame = 0;
+  private basePixelRatio = Math.min(window.devicePixelRatio, 2);
+  private interactionPixelRatio = this.basePixelRatio;
+  private interactiveQualityMode = false;
 
   private simulationParams: SimulationParams = { ...DEFAULT_SIMULATION_PARAMS };
   private pipeParams: PipeParams = { ...DEFAULT_PIPE_PARAMS };
@@ -146,21 +152,22 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.scene = new Scene();
     this.scene.background = new Color('#000000');
 
+    this.updatePixelRatioTargets();
     this.renderer = new WebGLRenderer({ canvas: this.canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(this.basePixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.24;
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     this.camera = new PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 12000);
     this.camera.position.set(24, 18, 24);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
+    this.controls.enableDamping = false;
     this.controls.maxDistance = 10000;
     this.controls.target.set(0, 6, 0);
     applyOrbitMouseMapping(this.controls);
@@ -182,11 +189,19 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
     this.addDomListener(window, 'resize', () => this.handleResize());
     this.addDomListener(this.canvas, 'contextmenu', (event) => event.preventDefault());
-    const onControlsChange = () => {
+    const onControlsStart = () => {
+      if (this.running) {
+        this.setInteractiveQualityMode(true);
+      }
+    };
+    const onControlsEnd = () => {
+      this.setInteractiveQualityMode(false);
       this.renderFrame();
     };
-    this.controls.addEventListener('change', onControlsChange);
-    this.uiCleanup.push(() => this.controls.removeEventListener('change', onControlsChange));
+    this.controls.addEventListener('start', onControlsStart);
+    this.controls.addEventListener('end', onControlsEnd);
+    this.uiCleanup.push(() => this.controls.removeEventListener('start', onControlsStart));
+    this.uiCleanup.push(() => this.controls.removeEventListener('end', onControlsEnd));
 
     this.animationLoop();
   }
@@ -198,6 +213,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
   stop(): void {
     this.running = false;
+    this.setInteractiveQualityMode(false);
     this.updateRunButtons();
   }
 
@@ -275,7 +291,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const key = new DirectionalLight(0xffffff, 2.25);
     key.position.set(24, 30, 14);
     key.castShadow = true;
-    key.shadow.mapSize.set(4096, 4096);
+    key.shadow.mapSize.set(KEY_SHADOW_MAP_SIZE, KEY_SHADOW_MAP_SIZE);
     key.shadow.camera.near = 0.5;
     key.shadow.camera.far = 220;
     key.shadow.camera.left = -22;
@@ -427,7 +443,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     shadowCamera.top = orthoHalf;
     shadowCamera.bottom = -orthoHalf;
     shadowCamera.updateProjectionMatrix();
-    this.keyLight.shadow.needsUpdate = true;
+    this.requestShadowRefresh();
   }
 
   private animationLoop = (): void => {
@@ -458,6 +474,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
           this.lastLiveRebuildSeconds = elapsedSeconds;
         }
         this.running = false;
+        this.setInteractiveQualityMode(false);
         this.updateRunButtons();
       }
     }
@@ -475,10 +492,43 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
+    this.updatePixelRatioTargets();
     this.renderer.setSize(width, height);
     this.clampPanelToViewport();
     this.refreshAllRangeProgress();
     this.renderFrame();
+  }
+
+  private updatePixelRatioTargets(): void {
+    this.basePixelRatio = Math.min(window.devicePixelRatio, 2);
+    this.interactionPixelRatio = Math.min(
+      this.basePixelRatio,
+      Math.max(INTERACTION_MIN_PIXEL_RATIO, this.basePixelRatio * INTERACTION_PIXEL_RATIO_SCALE),
+    );
+    this.renderer?.setPixelRatio(this.interactiveQualityMode ? this.interactionPixelRatio : this.basePixelRatio);
+  }
+
+  private setInteractiveQualityMode(enabled: boolean): void {
+    if (this.interactiveQualityMode === enabled) {
+      return;
+    }
+    this.interactiveQualityMode = enabled;
+    this.renderer.setPixelRatio(enabled ? this.interactionPixelRatio : this.basePixelRatio);
+
+    const shadowsEnabled = !enabled;
+    if (this.renderer.shadowMap.enabled !== shadowsEnabled) {
+      this.renderer.shadowMap.enabled = shadowsEnabled;
+      if (shadowsEnabled) {
+        this.requestShadowRefresh();
+      }
+    }
+  }
+
+  private requestShadowRefresh(): void {
+    if (this.keyLight) {
+      this.keyLight.shadow.needsUpdate = true;
+    }
+    this.renderer.shadowMap.needsUpdate = true;
   }
 
   private resolveUiElements(): UiElements {
