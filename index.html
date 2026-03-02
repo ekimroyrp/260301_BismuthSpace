@@ -31,32 +31,46 @@
         </button>
       </div>
       <div class="ui-body panel-sections">
+        <div class="control-hint">Wheel = Zoom, MMB = Pan, RMB = Orbit</div>
         <section class="panel-section">
           <div class="panel-section-header">
             <span class="panel-section-label">Simulation</span>
           </div>
           <div class="panel-section-content panel-controls-stack">
-        <div class="control-hint">
-          <div>Wheel = Zoom</div>
-          <div>MMB = Pan</div>
-          <div>RMB = Orbit</div>
+        <div class="control">
+          <button type="button" id="start-sim" class="pill-button control-button-wide">Start</button>
         </div>
 
-        <div class="control control-grid-3">
-          <button type="button" id="start-sim" class="pill-button">Start</button>
-          <button type="button" id="stop-sim" class="pill-button">Stop</button>
-          <button type="button" id="reset-sim" class="pill-button">Reset</button>
+        <div class="control">
+          <button type="button" id="reset-sim" class="pill-button control-button-wide">Reset</button>
         </div>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Seed</span>
+            <span id="seed-slider-value">260301</span>
+          </div>
+          <input type="range" id="seed-value" min="0" max="999999" step="1" value="260301" />
+        </label>
 
         <div class="control control-grid-2">
-          <label class="control compact">
-            <div class="control-row">
-              <span>Seed</span>
-            </div>
-            <input type="number" id="seed-value" class="number-input" value="260301" step="1" />
+          <label class="control compact toggle-control" for="symmetry-toggle">
+            <span>Symmetry</span>
+            <input type="checkbox" id="symmetry-toggle" />
           </label>
-          <button type="button" id="random-seed" class="pill-button">Randomize Seed</button>
+          <label class="control compact toggle-control" for="flip-toggle">
+            <span>Flip</span>
+            <input type="checkbox" id="flip-toggle" />
+          </label>
         </div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-section-header">
+            <span class="panel-section-label">Paths</span>
+          </div>
+          <div class="panel-section-content panel-controls-stack">
 
         <label class="control">
           <div class="control-row">
@@ -96,16 +110,6 @@
             <span id="initial-loop-value">4</span>
           </div>
           <input type="range" id="initial-loop" min="3" max="36" step="1" value="4" />
-        </label>
-
-        <label class="control toggle-control" for="symmetry-toggle">
-          <span>Symmetry</span>
-          <input type="checkbox" id="symmetry-toggle" />
-        </label>
-
-        <label class="control toggle-control" for="flip-toggle">
-          <span>Flip</span>
-          <input type="checkbox" id="flip-toggle" />
         </label>
 
         <label class="control">

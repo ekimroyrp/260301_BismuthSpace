@@ -34,10 +34,9 @@ interface UiElements {
   handleBottom: HTMLDivElement;
   collapseToggle: HTMLButtonElement;
   start: HTMLButtonElement;
-  stop: HTMLButtonElement;
   reset: HTMLButtonElement;
   seed: HTMLInputElement;
-  randomSeed: HTMLButtonElement;
+  seedSliderValue: HTMLSpanElement;
   growthRate: HTMLInputElement;
   growthRateValue: HTMLSpanElement;
   branchChance: HTMLInputElement;
@@ -235,6 +234,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   setSeed(seed: number): void {
     this.simulationParams.seed = Math.round(seed);
     this.ui.seed.value = String(this.simulationParams.seed);
+    this.ui.seedSliderValue.textContent = String(this.simulationParams.seed);
+    this.updateRangeProgress(this.ui.seed);
     this.materialController.setSeed(this.simulationParams.seed);
     this.reset();
   }
@@ -550,10 +551,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const handleBottom = document.getElementById('ui-handle-bottom');
     const collapseToggle = document.getElementById('collapse-toggle');
     const start = document.getElementById('start-sim');
-    const stop = document.getElementById('stop-sim');
     const reset = document.getElementById('reset-sim');
     const seed = document.getElementById('seed-value');
-    const randomSeed = document.getElementById('random-seed');
+    const seedSliderValue = document.getElementById('seed-slider-value');
 
     const growthRate = document.getElementById('growth-rate');
     const growthRateValue = document.getElementById('growth-rate-value');
@@ -598,10 +598,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       !(handleBottom instanceof HTMLDivElement) ||
       !(collapseToggle instanceof HTMLButtonElement) ||
       !(start instanceof HTMLButtonElement) ||
-      !(stop instanceof HTMLButtonElement) ||
       !(reset instanceof HTMLButtonElement) ||
       !(seed instanceof HTMLInputElement) ||
-      !(randomSeed instanceof HTMLButtonElement) ||
+      !(seedSliderValue instanceof HTMLSpanElement) ||
       !(growthRate instanceof HTMLInputElement) ||
       !(growthRateValue instanceof HTMLSpanElement) ||
       !(branchChance instanceof HTMLInputElement) ||
@@ -648,10 +647,9 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       handleBottom,
       collapseToggle,
       start,
-      stop,
       reset,
       seed,
-      randomSeed,
+      seedSliderValue,
       growthRate,
       growthRateValue,
       branchChance,
@@ -693,10 +691,15 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
   private setupUi(): void {
     this.ui.seed.value = String(this.simulationParams.seed);
+    this.ui.seedSliderValue.textContent = String(this.simulationParams.seed);
     this.ui.symmetryToggle.checked = this.simulationParams.symmetryAcrossXYPlane;
     this.ui.flipToggle.checked = this.simulationParams.flipUpsideDown;
     this.ui.gradientStartColor.value = DEFAULT_BRANCH_GRADIENT_START;
     this.ui.gradientEndColor.value = DEFAULT_BRANCH_GRADIENT_END;
+
+    this.bindRange(this.ui.seed, this.ui.seedSliderValue, (value) => `${Math.round(value)}`, (value) => {
+      this.setSeed(Math.round(value));
+    });
 
     this.bindRange(this.ui.growthRate, this.ui.growthRateValue, (value) => `${Math.round(value)}`, (value) => {
       this.setSimulationParams({ segmentsPerStep: Math.round(value) });
@@ -816,24 +819,14 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       this.setMaterialParams({ reflectiveness: value });
     });
 
-    this.addDomListener(this.ui.start, 'click', () => this.start());
-    this.addDomListener(this.ui.stop, 'click', () => this.stop());
-    this.addDomListener(this.ui.reset, 'click', () => this.reset());
-    this.addDomListener(this.ui.randomSeed, 'click', () => {
-      const nextSeed = Math.floor(Math.random() * 1000000);
-      this.setSeed(nextSeed);
-    });
-    this.addDomListener(this.ui.seed, 'change', () => {
-      this.setSeed(Number.parseInt(this.ui.seed.value, 10));
-    });
-    this.addDomListener(this.ui.seed, 'keydown', (event) => {
-      const keyboardEvent = event as KeyboardEvent;
-      if (keyboardEvent.key !== 'Enter') {
+    this.addDomListener(this.ui.start, 'click', () => {
+      if (this.running) {
+        this.stop();
         return;
       }
-      this.setSeed(Number.parseInt(this.ui.seed.value, 10));
-      this.ui.seed.blur();
+      this.start();
     });
+    this.addDomListener(this.ui.reset, 'click', () => this.reset());
     this.addDomListener(this.ui.symmetryToggle, 'change', () => {
       this.setSimulationParams({ symmetryAcrossXYPlane: this.ui.symmetryToggle.checked });
       this.reset();
@@ -953,8 +946,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   }
 
   private updateRunButtons(): void {
-    this.ui.start.disabled = this.running;
-    this.ui.stop.disabled = !this.running;
+    this.ui.start.textContent = this.running ? 'Stop' : 'Start';
+    this.ui.start.setAttribute('aria-label', this.running ? 'Stop simulation' : 'Start simulation');
   }
 
   private updateRangeProgress(input: HTMLInputElement): void {

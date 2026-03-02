@@ -283,6 +283,10 @@ body {
   cursor: not-allowed;
 }
 
+.control-button-wide {
+  width: 100%;
+}
+
 .number-input {
   width: 100%;
   min-height: 30px;
