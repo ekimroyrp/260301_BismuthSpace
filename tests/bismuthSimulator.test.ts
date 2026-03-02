@@ -33,6 +33,7 @@ const BASE_PARAMS: SimulationParams = {
   initialLoopSize: 12,
   boundsRadius: 40,
   symmetryAcrossXYPlane: false,
+  flipUpsideDown: false,
 };
 
 describe('BismuthSimulator', () => {

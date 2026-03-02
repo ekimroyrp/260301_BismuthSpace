@@ -4,6 +4,7 @@ import {
   Clock,
   Color,
   DirectionalLight,
+  Group,
   MathUtils,
   OrthographicCamera,
   PCFSoftShadowMap,
@@ -62,6 +63,7 @@ interface UiElements {
   frontCollisionLimit: HTMLInputElement;
   frontCollisionLimitValue: HTMLSpanElement;
   symmetryToggle: HTMLInputElement;
+  flipToggle: HTMLInputElement;
   pipeOuterSize: HTMLInputElement;
   pipeOuterSizeValue: HTMLSpanElement;
   gradientStartColor: HTMLInputElement;
@@ -91,6 +93,7 @@ const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
   initialLoopSize: 4,
   boundsRadius: 80,
   symmetryAcrossXYPlane: false,
+  flipUpsideDown: false,
 };
 
 const DEFAULT_PIPE_PARAMS: PipeParams = {
@@ -117,6 +120,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private readonly canvas: HTMLCanvasElement;
   private readonly renderer: WebGLRenderer;
   private readonly scene: Scene;
+  private readonly crystalGroup = new Group();
   private readonly camera: PerspectiveCamera;
   private readonly controls: OrbitControls;
   private readonly simulator: BismuthSimulator;
@@ -151,6 +155,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.canvas = canvas;
     this.scene = new Scene();
     this.scene.background = new Color('#000000');
+    this.scene.add(this.crystalGroup);
 
     this.updatePixelRatioTargets();
     this.renderer = new WebGLRenderer({ canvas: this.canvas, antialias: true });
@@ -180,6 +185,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.ui = this.resolveUiElements();
 
     this.rebuildInstancers();
+    this.applyFlipPresentation();
     this.rebuildAllMeshInstances();
     this.lastLiveRebuildSeconds = this.clock.getElapsedTime();
     this.pendingLiveRebuildEdges = 0;
@@ -345,18 +351,18 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       maxInstances,
     );
 
-    this.scene.add(this.straightInstancer.mesh);
-    this.scene.add(this.cornerInstancer.mesh);
+    this.crystalGroup.add(this.straightInstancer.mesh);
+    this.crystalGroup.add(this.cornerInstancer.mesh);
   }
 
   private disposeInstancers(): void {
     if (this.straightInstancer) {
-      this.scene.remove(this.straightInstancer.mesh);
+      this.crystalGroup.remove(this.straightInstancer.mesh);
       this.straightInstancer.disposeGeometry();
       this.straightInstancer = null;
     }
     if (this.cornerInstancer) {
-      this.scene.remove(this.cornerInstancer.mesh);
+      this.crystalGroup.remove(this.cornerInstancer.mesh);
       this.cornerInstancer.disposeGeometry();
       this.cornerInstancer = null;
     }
@@ -417,6 +423,13 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       maxX = edgeBounds.max.x * planarScale;
       maxY = edgeBounds.max.y * layerScale;
       maxZ = edgeBounds.max.z * planarScale;
+    }
+
+    if (this.simulationParams.flipUpsideDown) {
+      const flippedMinY = -maxY;
+      const flippedMaxY = -minY;
+      minY = flippedMinY;
+      maxY = flippedMaxY;
     }
 
     const centerX = (minX + maxX) * 0.5;
@@ -567,6 +580,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const frontCollisionLimit = document.getElementById('front-collision-limit');
     const frontCollisionLimitValue = document.getElementById('front-collision-limit-value');
     const symmetryToggle = document.getElementById('symmetry-toggle');
+    const flipToggle = document.getElementById('flip-toggle');
     const pipeOuterSize = document.getElementById('pipe-outer-size');
     const pipeOuterSizeValue = document.getElementById('pipe-outer-size-value');
     const gradientStartColor = document.getElementById('gradient-start-color');
@@ -613,6 +627,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       !(frontCollisionLimit instanceof HTMLInputElement) ||
       !(frontCollisionLimitValue instanceof HTMLSpanElement) ||
       !(symmetryToggle instanceof HTMLInputElement) ||
+      !(flipToggle instanceof HTMLInputElement) ||
       !(pipeOuterSize instanceof HTMLInputElement) ||
       !(pipeOuterSizeValue instanceof HTMLSpanElement) ||
       !(gradientStartColor instanceof HTMLInputElement) ||
@@ -662,6 +677,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       frontCollisionLimit,
       frontCollisionLimitValue,
       symmetryToggle,
+      flipToggle,
       pipeOuterSize,
       pipeOuterSizeValue,
       gradientStartColor,
@@ -678,6 +694,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private setupUi(): void {
     this.ui.seed.value = String(this.simulationParams.seed);
     this.ui.symmetryToggle.checked = this.simulationParams.symmetryAcrossXYPlane;
+    this.ui.flipToggle.checked = this.simulationParams.flipUpsideDown;
     this.ui.gradientStartColor.value = DEFAULT_BRANCH_GRADIENT_START;
     this.ui.gradientEndColor.value = DEFAULT_BRANCH_GRADIENT_END;
 
@@ -820,6 +837,12 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.addDomListener(this.ui.symmetryToggle, 'change', () => {
       this.setSimulationParams({ symmetryAcrossXYPlane: this.ui.symmetryToggle.checked });
       this.reset();
+    });
+    this.addDomListener(this.ui.flipToggle, 'change', () => {
+      this.setSimulationParams({ flipUpsideDown: this.ui.flipToggle.checked });
+      this.applyFlipPresentation();
+      this.updateKeyLightShadowFromBounds(this.simulator.getEdgeBounds());
+      this.renderFrame();
     });
 
     this.refreshAllRangeProgress();
@@ -969,7 +992,13 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       initialLoopSize: MathUtils.clamp(Math.round(params.initialLoopSize), 2, 256),
       boundsRadius: MathUtils.clamp(Math.round(params.boundsRadius), 4, 4096),
       symmetryAcrossXYPlane: Boolean(params.symmetryAcrossXYPlane),
+      flipUpsideDown: Boolean(params.flipUpsideDown),
     };
+  }
+
+  private applyFlipPresentation(): void {
+    this.crystalGroup.scale.set(1, this.simulationParams.flipUpsideDown ? -1 : 1, 1);
+    this.crystalGroup.updateMatrixWorld(true);
   }
 
   private addDomListener<T extends EventTarget>(

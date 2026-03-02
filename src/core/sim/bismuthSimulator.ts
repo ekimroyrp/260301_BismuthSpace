@@ -118,6 +118,7 @@ function sanitizeSimulationParams(params: SimulationParams): SimulationParams {
     initialLoopSize: clampInt(params.initialLoopSize, 2, 256),
     boundsRadius: clampInt(params.boundsRadius, 4, 4096),
     symmetryAcrossXYPlane: Boolean(params.symmetryAcrossXYPlane),
+    flipUpsideDown: Boolean(params.flipUpsideDown),
   };
 }
 

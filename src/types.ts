@@ -15,6 +15,7 @@ export interface SimulationParams {
   initialLoopSize: number;
   boundsRadius: number;
   symmetryAcrossXYPlane: boolean;
+  flipUpsideDown: boolean;
 }
 
 export interface PipeParams {

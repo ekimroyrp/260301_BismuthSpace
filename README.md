@@ -46,6 +46,7 @@
   - `Max Active Fronts`
   - `Initial Loop Size`
   - `Symmetry` (mirrors generated growth across the XY plane)
+  - `Flip` (visual upside-down view; simulation output is unchanged)
   - `New Segment Chance`
   - `Death Chance`
   - `Group Spawn Scale`
