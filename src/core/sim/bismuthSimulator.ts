@@ -9,14 +9,14 @@ const HORIZONTAL_DIRECTIONS: readonly Int3[] = [
   { x: 0, y: 0, z: -1 },
 ];
 
+const DEFAULT_NEW_SEGMENT_CHANCE = 0.1;
+const DEFAULT_DEATH_CHANCE = 0.01;
+const DEFAULT_GROUP_SPAWN_CHANCE_SCALE = 0.085;
+const DEFAULT_SEGMENT_GROWTH_BIAS = 0.12;
+const DEFAULT_SEGMENT_GROWTH_SCALE = 1.18;
+const DEFAULT_MAX_SEGMENTS_PER_FRONT = 6;
+const DEFAULT_FRONT_COLLISION_STREAK_LIMIT = 14;
 const LAYER_RISE_PER_LOOP = 1;
-const NEW_SEGMENT_CHANCE = 0.1;
-const DEATH_CHANCE = 0.01;
-const GROUP_SPAWN_CHANCE_SCALE = 0.085;
-const SEGMENT_GROWTH_BIAS = 0.12;
-const SEGMENT_GROWTH_SCALE = 1.18;
-const MAX_SEGMENTS_PER_FRONT = 6;
-const FRONT_COLLISION_STREAK_LIMIT = 14;
 
 interface EmitPathResult {
   addedEdges: LatticeEdge[];
@@ -65,6 +65,39 @@ function sanitizeSimulationParams(params: SimulationParams): SimulationParams {
     maxSegments: clampInt(params.maxSegments, 1, 500000),
     segmentsPerStep: clampInt(params.segmentsPerStep, 1, 256),
     branchChance: clampNumber(params.branchChance, 0, 1),
+    newSegmentChance: clampNumber(
+      Number.isFinite(params.newSegmentChance) ? params.newSegmentChance : DEFAULT_NEW_SEGMENT_CHANCE,
+      0,
+      1,
+    ),
+    deathChance: clampNumber(Number.isFinite(params.deathChance) ? params.deathChance : DEFAULT_DEATH_CHANCE, 0, 1),
+    groupSpawnChanceScale: clampNumber(
+      Number.isFinite(params.groupSpawnChanceScale) ? params.groupSpawnChanceScale : DEFAULT_GROUP_SPAWN_CHANCE_SCALE,
+      0,
+      1,
+    ),
+    segmentGrowthBias: clampNumber(
+      Number.isFinite(params.segmentGrowthBias) ? params.segmentGrowthBias : DEFAULT_SEGMENT_GROWTH_BIAS,
+      0,
+      8,
+    ),
+    segmentGrowthScale: clampNumber(
+      Number.isFinite(params.segmentGrowthScale) ? params.segmentGrowthScale : DEFAULT_SEGMENT_GROWTH_SCALE,
+      0,
+      8,
+    ),
+    maxSegmentsPerFront: clampInt(
+      Number.isFinite(params.maxSegmentsPerFront) ? params.maxSegmentsPerFront : DEFAULT_MAX_SEGMENTS_PER_FRONT,
+      1,
+      64,
+    ),
+    frontCollisionStreakLimit: clampInt(
+      Number.isFinite(params.frontCollisionStreakLimit)
+        ? params.frontCollisionStreakLimit
+        : DEFAULT_FRONT_COLLISION_STREAK_LIMIT,
+      1,
+      200,
+    ),
     maxActiveFronts: clampInt(params.maxActiveFronts, 1, 512),
     initialLoopSize: clampInt(params.initialLoopSize, 2, 256),
     boundsRadius: clampInt(params.boundsRadius, 4, 4096),
@@ -196,7 +229,8 @@ export class BismuthSimulator {
 
   private createFront(position: Int3, initialSegmentLength: number): FrontState {
     const startDirectionIndex = this.rng.nextInt(0, HORIZONTAL_DIRECTIONS.length - 1);
-    const seededLength = Math.max(0.45, initialSegmentLength * (0.28 + this.rng.next() * 0.38));
+    const baseInitialLength = Math.max(1, Math.round(initialSegmentLength));
+    const seededLength = Math.max(0.45, baseInitialLength * (0.9 + this.rng.next() * 0.25));
 
     return {
       id: this.nextFrontId++,
@@ -205,7 +239,7 @@ export class BismuthSimulator {
       baseDirectionIndex: startDirectionIndex,
       clockwise: this.rng.next() > 0.5,
       segments: [{ length: seededLength }],
-      initialSegmentLength: Math.max(1, Math.round(initialSegmentLength)),
+      initialSegmentLength: baseInitialLength,
       latestHead: clonePoint(position),
       latestEndDirectionIndex: startDirectionIndex,
       collisionStreak: 0,
@@ -218,11 +252,11 @@ export class BismuthSimulator {
       return [];
     }
 
-    if (front.segments.length === 0 || this.rng.next() < NEW_SEGMENT_CHANCE) {
+    if (front.segments.length === 0 || this.rng.next() < this.params.newSegmentChance) {
       front.segments.push({ length: 0 });
     }
 
-    const growthDelta = SEGMENT_GROWTH_BIAS + this.rng.next() * SEGMENT_GROWTH_SCALE;
+    const growthDelta = this.params.segmentGrowthBias + this.rng.next() * this.params.segmentGrowthScale;
     for (const segment of front.segments) {
       segment.length += growthDelta;
     }
@@ -244,7 +278,7 @@ export class BismuthSimulator {
       front.collisionStreak = 0;
     }
 
-    if (front.collisionStreak >= FRONT_COLLISION_STREAK_LIMIT) {
+    if (front.collisionStreak >= this.params.frontCollisionStreakLimit) {
       front.alive = false;
     }
 
@@ -265,7 +299,7 @@ export class BismuthSimulator {
   }
 
   private trimSegmentHistory(front: FrontState): void {
-    while (front.segments.length > MAX_SEGMENTS_PER_FRONT) {
+    while (front.segments.length > this.params.maxSegmentsPerFront) {
       const removed = front.segments.shift();
       if (!removed) {
         return;
@@ -338,7 +372,7 @@ export class BismuthSimulator {
       return;
     }
 
-    const groupSpawnChance = clampNumber(this.params.branchChance * GROUP_SPAWN_CHANCE_SCALE, 0, 0.35);
+    const groupSpawnChance = clampNumber(this.params.branchChance * this.params.groupSpawnChanceScale, 0, 0.35);
     if (this.rng.next() > groupSpawnChance) {
       return;
     }
@@ -367,7 +401,7 @@ export class BismuthSimulator {
     if (this.fronts.length <= 3) {
       return;
     }
-    if (this.rng.next() < DEATH_CHANCE) {
+    if (this.rng.next() < this.params.deathChance) {
       front.alive = false;
     }
   }

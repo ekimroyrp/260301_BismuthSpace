@@ -3,6 +3,13 @@ export interface SimulationParams {
   maxSegments: number;
   segmentsPerStep: number;
   branchChance: number;
+  newSegmentChance: number;
+  deathChance: number;
+  groupSpawnChanceScale: number;
+  segmentGrowthBias: number;
+  segmentGrowthScale: number;
+  maxSegmentsPerFront: number;
+  frontCollisionStreakLimit: number;
   maxActiveFronts: number;
   initialLoopSize: number;
   boundsRadius: number;

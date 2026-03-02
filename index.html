@@ -71,17 +71,73 @@
         <label class="control">
           <div class="control-row">
             <span>Max Active Fronts</span>
-            <span id="max-fronts-value">24</span>
+            <span id="max-fronts-value">40</span>
           </div>
-          <input type="range" id="max-fronts" min="1" max="64" step="1" value="24" />
+          <input type="range" id="max-fronts" min="1" max="64" step="1" value="40" />
         </label>
 
         <label class="control">
           <div class="control-row">
             <span>Initial Loop Size</span>
-            <span id="initial-loop-value">5</span>
+            <span id="initial-loop-value">4</span>
           </div>
-          <input type="range" id="initial-loop" min="3" max="36" step="1" value="5" />
+          <input type="range" id="initial-loop" min="3" max="36" step="1" value="4" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>New Segment Chance</span>
+            <span id="new-segment-chance-value">0.10</span>
+          </div>
+          <input type="range" id="new-segment-chance" min="0" max="0.5" step="0.005" value="0.1" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Death Chance</span>
+            <span id="death-chance-value">0.01</span>
+          </div>
+          <input type="range" id="death-chance" min="0" max="0.1" step="0.001" value="0.01" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Group Spawn Scale</span>
+            <span id="group-spawn-scale-value">0.083</span>
+          </div>
+          <input type="range" id="group-spawn-scale" min="0" max="0.3" step="0.005" value="0.083" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Segment Growth Bias</span>
+            <span id="segment-growth-bias-value">0.00</span>
+          </div>
+          <input type="range" id="segment-growth-bias" min="0" max="2" step="0.01" value="0" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Segment Growth Scale</span>
+            <span id="segment-growth-scale-value">3.00</span>
+          </div>
+          <input type="range" id="segment-growth-scale" min="0" max="4" step="0.01" value="3" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Max Segments / Front</span>
+            <span id="max-segments-front-value">6</span>
+          </div>
+          <input type="range" id="max-segments-front" min="1" max="16" step="1" value="6" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Front Collision Limit</span>
+            <span id="front-collision-limit-value">18</span>
+          </div>
+          <input type="range" id="front-collision-limit" min="2" max="60" step="1" value="18" />
         </label>
 
         <label class="control">
@@ -89,7 +145,7 @@
             <span>Pipe Outer Size</span>
             <span id="pipe-outer-size-value">0.22</span>
           </div>
-          <input type="range" id="pipe-outer-size" min="0.08" max="0.45" step="0.01" value="0.22" />
+          <input type="range" id="pipe-outer-size" min="0.08" max="3" step="0.01" value="0.22" />
         </label>
 
         <label class="control">

@@ -9,10 +9,12 @@
 - Clustered aggregate growth fronts with branching and occupancy constraints.
 - Two-geometry instanced rendering model for speed: corner cubes + scaled path boxes.
 - Layer output emits horizontal path edges only, avoiding vertical connector segments between layers.
+- Scene renders without ground plane/pedestal geometry for unobstructed crystal framing.
 - Segment trimming logic keeps path boxes fitted between corner cubes at turns.
 - Iridescent bismuth-style material using `MeshPhysicalMaterial` + shader customization.
 - Draggable, collapsible control panel reused/adapted from `260222_CrystalGrowth`.
 - Runtime controls for simulation flow, seed, growth, branching, pipe dimensions, and material response.
+- Runtime tuning sliders for CodePen-style growth constants (segment spawn, death, growth bias/scale, branch-group scale, history cap, and collision limit).
 - Unit tests for RNG determinism, simulator determinism/reset, orbit mouse mapping, and path mesher trim/classification.
 
 ## Getting Started
@@ -42,7 +44,14 @@
   - `Branch Chance`
   - `Max Active Fronts`
   - `Initial Loop Size`
-  - `Pipe Outer Size`
+  - `New Segment Chance`
+  - `Death Chance`
+  - `Group Spawn Scale`
+  - `Segment Growth Bias`
+  - `Segment Growth Scale`
+  - `Max Segments / Front`
+  - `Front Collision Limit`
+  - `Pipe Outer Size` (controls pipe thickness and vertical layer spacing)
 - Material:
   - `Iridescence Strength`
   - `Hue Band Frequency`

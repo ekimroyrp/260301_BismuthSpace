@@ -1,15 +1,11 @@
 import {
   ACESFilmicToneMapping,
   AmbientLight,
-  BoxGeometry,
   Clock,
   Color,
   DirectionalLight,
   MathUtils,
-  Mesh,
-  MeshStandardMaterial,
   PerspectiveCamera,
-  PlaneGeometry,
   PMREMGenerator,
   Scene,
   SRGBColorSpace,
@@ -45,6 +41,20 @@ interface UiElements {
   maxFrontsValue: HTMLSpanElement;
   initialLoop: HTMLInputElement;
   initialLoopValue: HTMLSpanElement;
+  newSegmentChance: HTMLInputElement;
+  newSegmentChanceValue: HTMLSpanElement;
+  deathChance: HTMLInputElement;
+  deathChanceValue: HTMLSpanElement;
+  groupSpawnScale: HTMLInputElement;
+  groupSpawnScaleValue: HTMLSpanElement;
+  segmentGrowthBias: HTMLInputElement;
+  segmentGrowthBiasValue: HTMLSpanElement;
+  segmentGrowthScale: HTMLInputElement;
+  segmentGrowthScaleValue: HTMLSpanElement;
+  maxSegmentsFront: HTMLInputElement;
+  maxSegmentsFrontValue: HTMLSpanElement;
+  frontCollisionLimit: HTMLInputElement;
+  frontCollisionLimitValue: HTMLSpanElement;
   pipeOuterSize: HTMLInputElement;
   pipeOuterSizeValue: HTMLSpanElement;
   iridescenceStrength: HTMLInputElement;
@@ -58,8 +68,15 @@ const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
   maxSegments: 80000,
   segmentsPerStep: 8,
   branchChance: 0.18,
-  maxActiveFronts: 24,
-  initialLoopSize: 5,
+  newSegmentChance: 0.1,
+  deathChance: 0.01,
+  groupSpawnChanceScale: 0.083,
+  segmentGrowthBias: 0,
+  segmentGrowthScale: 3,
+  maxSegmentsPerFront: 6,
+  frontCollisionStreakLimit: 18,
+  maxActiveFronts: 40,
+  initialLoopSize: 4,
   boundsRadius: 80,
 };
 
@@ -67,6 +84,8 @@ const DEFAULT_PIPE_PARAMS: PipeParams = {
   pipeOuterSize: 0.22,
   cornerInset: 0.11,
 };
+
+const WORLD_PLANAR_STEP_SIZE = 0.5;
 
 const DEFAULT_MATERIAL_PARAMS: MaterialParams = {
   iridescenceStrength: 0.75,
@@ -109,12 +128,13 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     this.renderer.toneMappingExposure = 1.1;
     this.renderer.shadowMap.enabled = true;
 
-    this.camera = new PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 600);
+    this.camera = new PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 12000);
     this.camera.position.set(24, 18, 24);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
+    this.controls.maxDistance = 10000;
     this.controls.target.set(0, 6, 0);
     applyOrbitMouseMapping(this.controls);
 
@@ -175,7 +195,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   }
 
   setPipeParams(partial: Partial<Pick<PipeParams, 'pipeOuterSize'>>): void {
-    const nextOuter = MathUtils.clamp(partial.pipeOuterSize ?? this.pipeParams.pipeOuterSize, 0.05, 1);
+    const nextOuter = MathUtils.clamp(partial.pipeOuterSize ?? this.pipeParams.pipeOuterSize, 0.05, 3);
     this.pipeParams = {
       pipeOuterSize: nextOuter,
       cornerInset: nextOuter * 0.5,
@@ -242,32 +262,6 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     rimB.position.set(14, 8, -20);
     this.scene.add(rimB);
 
-    const floor = new Mesh(
-      new PlaneGeometry(240, 240),
-      new MeshStandardMaterial({
-        color: '#0f1216',
-        roughness: 0.9,
-        metalness: 0.1,
-      }),
-    );
-    floor.rotation.x = -Math.PI * 0.5;
-    floor.position.y = -0.02;
-    floor.receiveShadow = true;
-    floor.castShadow = false;
-    this.scene.add(floor);
-
-    const pedestal = new Mesh(
-      new BoxGeometry(30, 1.4, 30),
-      new MeshStandardMaterial({
-        color: '#11151a',
-        roughness: 0.85,
-        metalness: 0.2,
-      }),
-    );
-    pedestal.position.y = -0.72;
-    pedestal.receiveShadow = true;
-    pedestal.castShadow = true;
-    this.scene.add(pedestal);
   }
 
   private setupEnvironment(): void {
@@ -322,7 +316,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const meshData = buildPipeInstanceMatrices(this.simulator.getEdges(), {
       cornerInset: this.pipeParams.cornerInset,
       layerStepHeight: this.pipeParams.pipeOuterSize,
-      planarStepSize: this.pipeParams.pipeOuterSize,
+      planarStepSize: WORLD_PLANAR_STEP_SIZE,
     });
 
     this.straightInstancer.setMatrices(meshData.straightMatrices);
@@ -383,6 +377,20 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const maxFrontsValue = document.getElementById('max-fronts-value');
     const initialLoop = document.getElementById('initial-loop');
     const initialLoopValue = document.getElementById('initial-loop-value');
+    const newSegmentChance = document.getElementById('new-segment-chance');
+    const newSegmentChanceValue = document.getElementById('new-segment-chance-value');
+    const deathChance = document.getElementById('death-chance');
+    const deathChanceValue = document.getElementById('death-chance-value');
+    const groupSpawnScale = document.getElementById('group-spawn-scale');
+    const groupSpawnScaleValue = document.getElementById('group-spawn-scale-value');
+    const segmentGrowthBias = document.getElementById('segment-growth-bias');
+    const segmentGrowthBiasValue = document.getElementById('segment-growth-bias-value');
+    const segmentGrowthScale = document.getElementById('segment-growth-scale');
+    const segmentGrowthScaleValue = document.getElementById('segment-growth-scale-value');
+    const maxSegmentsFront = document.getElementById('max-segments-front');
+    const maxSegmentsFrontValue = document.getElementById('max-segments-front-value');
+    const frontCollisionLimit = document.getElementById('front-collision-limit');
+    const frontCollisionLimitValue = document.getElementById('front-collision-limit-value');
     const pipeOuterSize = document.getElementById('pipe-outer-size');
     const pipeOuterSizeValue = document.getElementById('pipe-outer-size-value');
     const iridescenceStrength = document.getElementById('iridescence-strength');
@@ -408,6 +416,20 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       !(maxFrontsValue instanceof HTMLSpanElement) ||
       !(initialLoop instanceof HTMLInputElement) ||
       !(initialLoopValue instanceof HTMLSpanElement) ||
+      !(newSegmentChance instanceof HTMLInputElement) ||
+      !(newSegmentChanceValue instanceof HTMLSpanElement) ||
+      !(deathChance instanceof HTMLInputElement) ||
+      !(deathChanceValue instanceof HTMLSpanElement) ||
+      !(groupSpawnScale instanceof HTMLInputElement) ||
+      !(groupSpawnScaleValue instanceof HTMLSpanElement) ||
+      !(segmentGrowthBias instanceof HTMLInputElement) ||
+      !(segmentGrowthBiasValue instanceof HTMLSpanElement) ||
+      !(segmentGrowthScale instanceof HTMLInputElement) ||
+      !(segmentGrowthScaleValue instanceof HTMLSpanElement) ||
+      !(maxSegmentsFront instanceof HTMLInputElement) ||
+      !(maxSegmentsFrontValue instanceof HTMLSpanElement) ||
+      !(frontCollisionLimit instanceof HTMLInputElement) ||
+      !(frontCollisionLimitValue instanceof HTMLSpanElement) ||
       !(pipeOuterSize instanceof HTMLInputElement) ||
       !(pipeOuterSizeValue instanceof HTMLSpanElement) ||
       !(iridescenceStrength instanceof HTMLInputElement) ||
@@ -436,6 +458,20 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       maxFrontsValue,
       initialLoop,
       initialLoopValue,
+      newSegmentChance,
+      newSegmentChanceValue,
+      deathChance,
+      deathChanceValue,
+      groupSpawnScale,
+      groupSpawnScaleValue,
+      segmentGrowthBias,
+      segmentGrowthBiasValue,
+      segmentGrowthScale,
+      segmentGrowthScaleValue,
+      maxSegmentsFront,
+      maxSegmentsFrontValue,
+      frontCollisionLimit,
+      frontCollisionLimitValue,
       pipeOuterSize,
       pipeOuterSizeValue,
       iridescenceStrength,
@@ -466,6 +502,64 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       this.setSimulationParams({ initialLoopSize: Math.round(value) });
       this.reset();
     });
+
+    this.bindRange(
+      this.ui.newSegmentChance,
+      this.ui.newSegmentChanceValue,
+      (value) => value.toFixed(3),
+      (value) => {
+        this.setSimulationParams({ newSegmentChance: value });
+      },
+    );
+
+    this.bindRange(this.ui.deathChance, this.ui.deathChanceValue, (value) => value.toFixed(3), (value) => {
+      this.setSimulationParams({ deathChance: value });
+    });
+
+    this.bindRange(
+      this.ui.groupSpawnScale,
+      this.ui.groupSpawnScaleValue,
+      (value) => value.toFixed(3),
+      (value) => {
+        this.setSimulationParams({ groupSpawnChanceScale: value });
+      },
+    );
+
+    this.bindRange(
+      this.ui.segmentGrowthBias,
+      this.ui.segmentGrowthBiasValue,
+      (value) => value.toFixed(2),
+      (value) => {
+        this.setSimulationParams({ segmentGrowthBias: value });
+      },
+    );
+
+    this.bindRange(
+      this.ui.segmentGrowthScale,
+      this.ui.segmentGrowthScaleValue,
+      (value) => value.toFixed(2),
+      (value) => {
+        this.setSimulationParams({ segmentGrowthScale: value });
+      },
+    );
+
+    this.bindRange(
+      this.ui.maxSegmentsFront,
+      this.ui.maxSegmentsFrontValue,
+      (value) => `${Math.round(value)}`,
+      (value) => {
+        this.setSimulationParams({ maxSegmentsPerFront: Math.round(value) });
+      },
+    );
+
+    this.bindRange(
+      this.ui.frontCollisionLimit,
+      this.ui.frontCollisionLimitValue,
+      (value) => `${Math.round(value)}`,
+      (value) => {
+        this.setSimulationParams({ frontCollisionStreakLimit: Math.round(value) });
+      },
+    );
 
     this.bindRange(this.ui.pipeOuterSize, this.ui.pipeOuterSizeValue, (value) => value.toFixed(2), (value) => {
       this.setPipeParams({ pipeOuterSize: value });
@@ -638,6 +732,13 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       maxSegments: MathUtils.clamp(Math.round(params.maxSegments), 1, 500000),
       segmentsPerStep: MathUtils.clamp(Math.round(params.segmentsPerStep), 1, 256),
       branchChance: MathUtils.clamp(params.branchChance, 0, 1),
+      newSegmentChance: MathUtils.clamp(params.newSegmentChance, 0, 1),
+      deathChance: MathUtils.clamp(params.deathChance, 0, 1),
+      groupSpawnChanceScale: MathUtils.clamp(params.groupSpawnChanceScale, 0, 1),
+      segmentGrowthBias: MathUtils.clamp(params.segmentGrowthBias, 0, 8),
+      segmentGrowthScale: MathUtils.clamp(params.segmentGrowthScale, 0, 8),
+      maxSegmentsPerFront: MathUtils.clamp(Math.round(params.maxSegmentsPerFront), 1, 64),
+      frontCollisionStreakLimit: MathUtils.clamp(Math.round(params.frontCollisionStreakLimit), 1, 200),
       maxActiveFronts: MathUtils.clamp(Math.round(params.maxActiveFronts), 1, 512),
       initialLoopSize: MathUtils.clamp(Math.round(params.initialLoopSize), 2, 256),
       boundsRadius: MathUtils.clamp(Math.round(params.boundsRadius), 4, 4096),
