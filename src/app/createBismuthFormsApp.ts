@@ -873,11 +873,16 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       }
       const pointer = event as PointerEvent;
       const margin = 8;
-      const nextX = Math.max(
-        margin,
-        Math.min(window.innerWidth - panel.offsetWidth - margin, pointer.clientX - dragOffset.x),
-      );
-      const nextY = Math.max(margin, pointer.clientY - dragOffset.y);
+      const rootStyles = window.getComputedStyle(document.documentElement);
+      const menuScaleRaw = rootStyles.getPropertyValue('--menu-scale').trim();
+      const parsedMenuScale = Number.parseFloat(menuScaleRaw);
+      const menuScale = Number.isFinite(parsedMenuScale) && parsedMenuScale > 0 ? parsedMenuScale : 1;
+      const scaledPanelWidth = panel.offsetWidth * menuScale;
+      const scaledPanelHeight = panel.offsetHeight * menuScale;
+      const maxX = Math.max(margin, window.innerWidth - scaledPanelWidth - margin);
+      const maxY = Math.max(margin, window.innerHeight - scaledPanelHeight - margin);
+      const nextX = Math.min(Math.max(pointer.clientX - dragOffset.x, margin), maxX);
+      const nextY = Math.min(Math.max(pointer.clientY - dragOffset.y, margin), maxY);
       panel.style.left = `${nextX}px`;
       panel.style.top = `${nextY}px`;
       panel.style.right = 'auto';
@@ -908,16 +913,23 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const margin = 8;
     const minHeight = handleTop.offsetHeight + handleBottom.offsetHeight + 160;
     const availableHeight = window.innerHeight - margin * 2;
+    const rootStyles = window.getComputedStyle(document.documentElement);
+    const menuScaleRaw = rootStyles.getPropertyValue('--menu-scale').trim();
+    const parsedMenuScale = Number.parseFloat(menuScaleRaw);
+    const menuScale = Number.isFinite(parsedMenuScale) && parsedMenuScale > 0 ? parsedMenuScale : 1;
 
-    panel.style.maxHeight = `${Math.max(minHeight, availableHeight)}px`;
+    // Keep the scaled panel as tall as possible and only rely on internal scrolling when content exceeds viewport.
+    panel.style.maxHeight = `${Math.max(minHeight, availableHeight / menuScale)}px`;
+    const scaledPanelHeight = panel.offsetHeight * menuScale;
+    const scaledPanelWidth = panel.offsetWidth * menuScale;
 
-    const maxTop = Math.max(margin, window.innerHeight - panel.offsetHeight - margin);
+    const maxTop = Math.max(margin, window.innerHeight - scaledPanelHeight - margin);
     const clampedTop = Math.min(Math.max(panel.offsetTop, margin), maxTop);
     if (clampedTop !== panel.offsetTop) {
       panel.style.top = `${clampedTop}px`;
     }
 
-    const maxLeft = Math.max(margin, window.innerWidth - panel.offsetWidth - margin);
+    const maxLeft = Math.max(margin, window.innerWidth - scaledPanelWidth - margin);
     const clampedLeft = Math.min(Math.max(panel.offsetLeft, margin), maxLeft);
     if (clampedLeft !== panel.offsetLeft) {
       panel.style.left = `${clampedLeft}px`;
