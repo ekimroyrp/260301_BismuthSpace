@@ -1,6 +1,6 @@
-# 260301_BismuthForms
+# 260301_BismuthSpace
 
-260301_BismuthForms is a Vite + TypeScript + Three.js interactive simulator for growing clustered bismuth-like crystal forms in a real 3D scene. Growth is generated from deterministic seeded lattice paths using a CodePen-inspired segment-chain model (stacked horizontal layer paths with evolving side lengths), then rendered with a fast two-geometry instancing setup: cube instances at turn corners and non-uniformly scaled rectangular box instances along path segments, plus an iridescent shader treatment inspired by real bismuth oxidation colors.
+260301_BismuthSpace is a Vite + TypeScript + Three.js interactive simulator for growing clustered bismuth-like crystal forms in a real 3D scene. Growth is generated from deterministic seeded lattice paths using a CodePen-inspired segment-chain model (stacked horizontal layer paths with evolving side lengths), then rendered with a fast two-geometry instancing setup: cube instances at turn corners and non-uniformly scaled rectangular box instances along path segments, plus an iridescent shader treatment inspired by real bismuth oxidation colors.
 
 ## Features
 
