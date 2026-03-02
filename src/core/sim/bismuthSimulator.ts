@@ -256,7 +256,8 @@ export class BismuthSimulator {
       front.segments.push({ length: 0 });
     }
 
-    const growthDelta = this.params.segmentGrowthBias + this.rng.next() * this.params.segmentGrowthScale;
+    const growthDeltaRaw = this.params.segmentGrowthBias + this.rng.next() * this.params.segmentGrowthScale;
+    const growthDelta = clampNumber(growthDeltaRaw, 0, 1);
     for (const segment of front.segments) {
       segment.length += growthDelta;
     }
@@ -305,7 +306,8 @@ export class BismuthSimulator {
         return;
       }
 
-      const removedSteps = Math.max(0, Math.floor(removed.length));
+      // Keep planar stepping quantized to one lattice unit so render spacing tracks pipe thickness exactly.
+      const removedSteps = Math.min(1, Math.max(0, Math.floor(removed.length)));
       const forward = HORIZONTAL_DIRECTIONS[front.baseDirectionIndex];
       front.basePosition = {
         x: front.basePosition.x + forward.x * removedSteps,

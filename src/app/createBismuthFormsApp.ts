@@ -85,8 +85,6 @@ const DEFAULT_PIPE_PARAMS: PipeParams = {
   cornerInset: 0.11,
 };
 
-const WORLD_PLANAR_STEP_SIZE = 0.5;
-
 const DEFAULT_MATERIAL_PARAMS: MaterialParams = {
   iridescenceStrength: 0.75,
   hueBandFrequency: 0.9,
@@ -316,7 +314,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const meshData = buildPipeInstanceMatrices(this.simulator.getEdges(), {
       cornerInset: this.pipeParams.cornerInset,
       layerStepHeight: this.pipeParams.pipeOuterSize,
-      planarStepSize: WORLD_PLANAR_STEP_SIZE,
+      planarStepSize: this.pipeParams.pipeOuterSize,
     });
 
     this.straightInstancer.setMatrices(meshData.straightMatrices);
