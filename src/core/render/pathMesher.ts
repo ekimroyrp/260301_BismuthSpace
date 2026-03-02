@@ -9,10 +9,6 @@ function pointKey(point: Int3): string {
   return `${point.x},${point.y},${point.z}`;
 }
 
-function edgeKeyByVertexKeys(aKey: string, bKey: string): string {
-  return aKey < bKey ? `${aKey}|${bKey}` : `${bKey}|${aKey}`;
-}
-
 function parsePointKey(key: string): Int3 {
   const [x, y, z] = key.split(',').map((entry) => Number.parseInt(entry, 10));
   return { x, y, z };
@@ -126,11 +122,7 @@ export function buildPipeInstanceMatrices(
   const quaternion = new Quaternion();
   const scale = new Vector3();
   const matrix = new Matrix4();
-  const visitedRunEdges = new Set<string>();
-
-  const addStraightRunMatrix = (startKey: string, endKey: string): void => {
-    const pointA = vertices.get(startKey) ?? parsePointKey(startKey);
-    const pointB = vertices.get(endKey) ?? parsePointKey(endKey);
+  const addStraightMatrix = (pointA: Int3, pointB: Int3): void => {
     const keyA = pointKey(pointA);
     const keyB = pointKey(pointB);
     const typeA = vertexTypes.get(keyA) ?? 'isolated';
@@ -173,62 +165,93 @@ export function buildPipeInstanceMatrices(
     straightMatrices.push(matrix.clone());
   };
 
-  const walkRun = (startKey: string, nextKey: string): string => {
-    let previousKey = startKey;
-    let currentKey = nextKey;
-    visitedRunEdges.add(edgeKeyByVertexKeys(previousKey, currentKey));
+  const xRuns = new Map<string, Set<number>>();
+  const yRuns = new Map<string, Set<number>>();
+  const zRuns = new Map<string, Set<number>>();
 
-    while (true) {
-      const currentType = vertexTypes.get(currentKey) ?? 'isolated';
-      if (currentType !== 'straight') {
-        return currentKey;
-      }
-
-      const neighbors = adjacency.get(currentKey);
-      if (!neighbors || neighbors.size !== 2) {
-        return currentKey;
-      }
-
-      const [neighborA, neighborB] = Array.from(neighbors);
-      const followKey = neighborA === previousKey ? neighborB : neighborA;
-      const followEdgeKey = edgeKeyByVertexKeys(currentKey, followKey);
-      if (visitedRunEdges.has(followEdgeKey)) {
-        return currentKey;
-      }
-
-      visitedRunEdges.add(followEdgeKey);
-      previousKey = currentKey;
-      currentKey = followKey;
+  const addUnit = (runs: Map<string, Set<number>>, key: string, start: number): void => {
+    if (!runs.has(key)) {
+      runs.set(key, new Set<number>());
     }
+    runs.get(key)?.add(start);
   };
 
-  for (const [startKey, neighbors] of adjacency) {
-    const startType = vertexTypes.get(startKey) ?? 'isolated';
-    if (startType === 'straight') {
+  for (const edge of edges) {
+    const dx = edge.b.x - edge.a.x;
+    const dy = edge.b.y - edge.a.y;
+    const dz = edge.b.z - edge.a.z;
+    const manhattan = Math.abs(dx) + Math.abs(dy) + Math.abs(dz);
+    if (manhattan !== 1) {
       continue;
     }
 
-    for (const nextKey of neighbors) {
-      const runEdgeKey = edgeKeyByVertexKeys(startKey, nextKey);
-      if (visitedRunEdges.has(runEdgeKey)) {
-        continue;
-      }
-      const endKey = walkRun(startKey, nextKey);
-      addStraightRunMatrix(startKey, endKey);
+    if (dx !== 0) {
+      const y = edge.a.y;
+      const z = edge.a.z;
+      addUnit(xRuns, `${y},${z}`, Math.min(edge.a.x, edge.b.x));
+      continue;
     }
+    if (dy !== 0) {
+      const x = edge.a.x;
+      const z = edge.a.z;
+      addUnit(yRuns, `${x},${z}`, Math.min(edge.a.y, edge.b.y));
+      continue;
+    }
+    const x = edge.a.x;
+    const y = edge.a.y;
+    addUnit(zRuns, `${x},${y}`, Math.min(edge.a.z, edge.b.z));
   }
 
-  // Fallback for any remaining unvisited connections (defensive for rare all-straight components).
-  for (const [startKey, neighbors] of adjacency) {
-    for (const nextKey of neighbors) {
-      const runEdgeKey = edgeKeyByVertexKeys(startKey, nextKey);
-      if (visitedRunEdges.has(runEdgeKey)) {
+  const emitAxisRuns = (runs: Map<string, Set<number>>, axis: 'x' | 'y' | 'z'): void => {
+    for (const [key, startsSet] of runs) {
+      const starts = Array.from(startsSet).sort((a, b) => a - b);
+      if (starts.length === 0) {
         continue;
       }
-      const endKey = walkRun(startKey, nextKey);
-      addStraightRunMatrix(startKey, endKey);
+
+      const [fixedA, fixedB] = key.split(',').map((entry) => Number.parseInt(entry, 10));
+      let runStart = starts[0];
+      let runLast = starts[0];
+
+      const flush = (startValue: number, endExclusive: number): void => {
+        if (axis === 'x') {
+          addStraightMatrix(
+            { x: startValue, y: fixedA, z: fixedB },
+            { x: endExclusive, y: fixedA, z: fixedB },
+          );
+          return;
+        }
+        if (axis === 'y') {
+          addStraightMatrix(
+            { x: fixedA, y: startValue, z: fixedB },
+            { x: fixedA, y: endExclusive, z: fixedB },
+          );
+          return;
+        }
+        addStraightMatrix(
+          { x: fixedA, y: fixedB, z: startValue },
+          { x: fixedA, y: fixedB, z: endExclusive },
+        );
+      };
+
+      for (let i = 1; i < starts.length; i += 1) {
+        const next = starts[i];
+        if (next === runLast + 1) {
+          runLast = next;
+          continue;
+        }
+        flush(runStart, runLast + 1);
+        runStart = next;
+        runLast = next;
+      }
+
+      flush(runStart, runLast + 1);
     }
-  }
+  };
+
+  emitAxisRuns(xRuns, 'x');
+  emitAxisRuns(yRuns, 'y');
+  emitAxisRuns(zRuns, 'z');
 
   for (const [key, type] of vertexTypes) {
     if (type !== 'turn') {

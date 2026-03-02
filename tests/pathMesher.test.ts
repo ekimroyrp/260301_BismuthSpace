@@ -41,4 +41,94 @@ describe('pathMesher classifyVertex', () => {
     result.straightMatrices[0].decompose(position, rotation, scale);
     expect(scale.y).toBeCloseTo(3);
   });
+
+  it('continues a main run through a collinear tee-junction', () => {
+    const edges: LatticeEdge[] = [
+      { a: { x: 0, y: 0, z: 0 }, b: { x: 1, y: 0, z: 0 } },
+      { a: { x: 1, y: 0, z: 0 }, b: { x: 2, y: 0, z: 0 } },
+      { a: { x: 2, y: 0, z: 0 }, b: { x: 3, y: 0, z: 0 } },
+      { a: { x: 1, y: 0, z: 0 }, b: { x: 1, y: 1, z: 0 } },
+    ];
+
+    const result = buildPipeInstanceMatrices(edges, {
+      cornerInset: 0.11,
+      layerStepHeight: 1,
+      planarStepSize: 1,
+    });
+
+    expect(result.straightMatrices.length).toBe(2);
+
+    const lengths = result.straightMatrices
+      .map((matrix) => {
+        const position = new Vector3();
+        const rotation = new Quaternion();
+        const scale = new Vector3();
+        matrix.decompose(position, rotation, scale);
+        return scale.y;
+      })
+      .sort((a, b) => a - b);
+
+    expect(lengths[0]).toBeCloseTo(1);
+    expect(lengths[1]).toBeCloseTo(3);
+  });
+
+  it('does not leave a short collinear stub when junction is visited first', () => {
+    const edges: LatticeEdge[] = [
+      { a: { x: 1, y: 0, z: 0 }, b: { x: 2, y: 0, z: 0 } },
+      { a: { x: 2, y: 0, z: 0 }, b: { x: 3, y: 0, z: 0 } },
+      { a: { x: 1, y: 0, z: 0 }, b: { x: 0, y: 0, z: 0 } },
+      { a: { x: 1, y: 0, z: 0 }, b: { x: 1, y: 1, z: 0 } },
+    ];
+
+    const result = buildPipeInstanceMatrices(edges, {
+      cornerInset: 0.11,
+      layerStepHeight: 1,
+      planarStepSize: 1,
+    });
+
+    expect(result.straightMatrices.length).toBe(2);
+
+    const lengths = result.straightMatrices
+      .map((matrix) => {
+        const position = new Vector3();
+        const rotation = new Quaternion();
+        const scale = new Vector3();
+        matrix.decompose(position, rotation, scale);
+        return scale.y;
+      })
+      .sort((a, b) => a - b);
+
+    expect(lengths[0]).toBeCloseTo(1);
+    expect(lengths[1]).toBeCloseTo(3);
+  });
+
+  it('merges opposite runs through a non-corner branch junction', () => {
+    const edges: LatticeEdge[] = [
+      { a: { x: 0, y: 0, z: 0 }, b: { x: 0, y: 1, z: 0 } },
+      { a: { x: 0, y: 1, z: 0 }, b: { x: 0, y: 2, z: 0 } },
+      { a: { x: 0, y: 2, z: 0 }, b: { x: 0, y: 3, z: 0 } },
+      { a: { x: 0, y: 1, z: 0 }, b: { x: 1, y: 1, z: 0 } },
+    ];
+
+    const result = buildPipeInstanceMatrices(edges, {
+      cornerInset: 0.11,
+      layerStepHeight: 1,
+      planarStepSize: 1,
+    });
+
+    expect(result.straightMatrices.length).toBe(2);
+
+    const lengths = result.straightMatrices
+      .map((matrix) => {
+        const position = new Vector3();
+        const rotation = new Quaternion();
+        const scale = new Vector3();
+        matrix.decompose(position, rotation, scale);
+        return scale.y;
+      })
+      .sort((a, b) => a - b);
+
+    expect(lengths[0]).toBeCloseTo(1);
+    expect(lengths[1]).toBeCloseTo(3);
+  });
 });
