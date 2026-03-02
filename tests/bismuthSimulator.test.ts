@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { BismuthSimulator } from '../src/core/sim/bismuthSimulator';
 import type { SimulationParams } from '../src/types';
 
+function pointKey(point: { x: number; y: number; z: number }): string {
+  return `${point.x},${point.y},${point.z}`;
+}
+
+function edgeKey(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }): string {
+  const keyA = pointKey(a);
+  const keyB = pointKey(b);
+  return keyA < keyB ? `${keyA}|${keyB}` : `${keyB}|${keyA}`;
+}
+
+function mirrorAcrossXYPlane(point: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+  return { x: point.x, y: point.y, z: -point.z };
+}
+
 const BASE_PARAMS: SimulationParams = {
   seed: 260301,
   maxSegments: 500,
@@ -18,6 +32,7 @@ const BASE_PARAMS: SimulationParams = {
   maxActiveFronts: 16,
   initialLoopSize: 12,
   boundsRadius: 40,
+  symmetryAcrossXYPlane: false,
 };
 
 describe('BismuthSimulator', () => {
@@ -120,6 +135,28 @@ describe('BismuthSimulator', () => {
         const upCount = front.segments.reduce((count, segment) => count + (segment.axis === 'up' ? 1 : 0), 0);
         expect(upCount).toBeLessThanOrEqual(1);
       }
+    }
+  });
+
+  it('mirrors emitted edges across the XY plane when symmetry is enabled', () => {
+    const simulator = new BismuthSimulator({
+      ...BASE_PARAMS,
+      symmetryAcrossXYPlane: true,
+      maxSegments: 2400,
+      segmentsPerStep: 24,
+    });
+
+    while (!simulator.isFinished()) {
+      simulator.step();
+    }
+
+    const edges = simulator.getEdges();
+    expect(edges.length).toBeGreaterThan(0);
+
+    const edgeKeys = new Set(edges.map((edge) => edgeKey(edge.a, edge.b)));
+    for (const edge of edges) {
+      const mirroredKey = edgeKey(mirrorAcrossXYPlane(edge.a), mirrorAcrossXYPlane(edge.b));
+      expect(edgeKeys.has(mirroredKey)).toBe(true);
     }
   });
 });

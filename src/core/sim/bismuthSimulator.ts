@@ -66,6 +66,10 @@ function rotateDirectionIndex(directionIndex: number, clockwise: boolean): numbe
   return (directionIndex + (clockwise ? 1 : 3)) % HORIZONTAL_DIRECTIONS.length;
 }
 
+function mirrorAcrossXYPlane(point: Int3): Int3 {
+  return { x: point.x, y: point.y, z: -point.z };
+}
+
 function sanitizeSimulationParams(params: SimulationParams): SimulationParams {
   return {
     seed: clampInt(params.seed, -2147483648, 2147483647),
@@ -113,6 +117,7 @@ function sanitizeSimulationParams(params: SimulationParams): SimulationParams {
     maxActiveFronts: clampInt(params.maxActiveFronts, 1, 512),
     initialLoopSize: clampInt(params.initialLoopSize, 2, 256),
     boundsRadius: clampInt(params.boundsRadius, 4, 4096),
+    symmetryAcrossXYPlane: Boolean(params.symmetryAcrossXYPlane),
   };
 }
 
@@ -471,6 +476,14 @@ export class BismuthSimulator {
   }
 
   private tryAddEdge(a: Int3, b: Int3, addedEdges: LatticeEdge[], branchId: number): void {
+    this.tryAddSingleEdge(a, b, addedEdges, branchId);
+    if (!this.params.symmetryAcrossXYPlane) {
+      return;
+    }
+    this.tryAddSingleEdge(mirrorAcrossXYPlane(a), mirrorAcrossXYPlane(b), addedEdges, branchId);
+  }
+
+  private tryAddSingleEdge(a: Int3, b: Int3, addedEdges: LatticeEdge[], branchId: number): void {
     if (!this.withinBounds(a) || !this.withinBounds(b)) {
       return;
     }

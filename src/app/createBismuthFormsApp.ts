@@ -61,6 +61,7 @@ interface UiElements {
   maxSegmentsFrontValue: HTMLSpanElement;
   frontCollisionLimit: HTMLInputElement;
   frontCollisionLimitValue: HTMLSpanElement;
+  symmetryToggle: HTMLInputElement;
   pipeOuterSize: HTMLInputElement;
   pipeOuterSizeValue: HTMLSpanElement;
   gradientStartColor: HTMLInputElement;
@@ -89,6 +90,7 @@ const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
   maxActiveFronts: 40,
   initialLoopSize: 4,
   boundsRadius: 80,
+  symmetryAcrossXYPlane: false,
 };
 
 const DEFAULT_PIPE_PARAMS: PipeParams = {
@@ -514,6 +516,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const maxSegmentsFrontValue = document.getElementById('max-segments-front-value');
     const frontCollisionLimit = document.getElementById('front-collision-limit');
     const frontCollisionLimitValue = document.getElementById('front-collision-limit-value');
+    const symmetryToggle = document.getElementById('symmetry-toggle');
     const pipeOuterSize = document.getElementById('pipe-outer-size');
     const pipeOuterSizeValue = document.getElementById('pipe-outer-size-value');
     const gradientStartColor = document.getElementById('gradient-start-color');
@@ -559,6 +562,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       !(maxSegmentsFrontValue instanceof HTMLSpanElement) ||
       !(frontCollisionLimit instanceof HTMLInputElement) ||
       !(frontCollisionLimitValue instanceof HTMLSpanElement) ||
+      !(symmetryToggle instanceof HTMLInputElement) ||
       !(pipeOuterSize instanceof HTMLInputElement) ||
       !(pipeOuterSizeValue instanceof HTMLSpanElement) ||
       !(gradientStartColor instanceof HTMLInputElement) ||
@@ -607,6 +611,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       maxSegmentsFrontValue,
       frontCollisionLimit,
       frontCollisionLimitValue,
+      symmetryToggle,
       pipeOuterSize,
       pipeOuterSizeValue,
       gradientStartColor,
@@ -622,6 +627,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
   private setupUi(): void {
     this.ui.seed.value = String(this.simulationParams.seed);
+    this.ui.symmetryToggle.checked = this.simulationParams.symmetryAcrossXYPlane;
     this.ui.gradientStartColor.value = DEFAULT_BRANCH_GRADIENT_START;
     this.ui.gradientEndColor.value = DEFAULT_BRANCH_GRADIENT_END;
 
@@ -760,6 +766,10 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       }
       this.setSeed(Number.parseInt(this.ui.seed.value, 10));
       this.ui.seed.blur();
+    });
+    this.addDomListener(this.ui.symmetryToggle, 'change', () => {
+      this.setSimulationParams({ symmetryAcrossXYPlane: this.ui.symmetryToggle.checked });
+      this.reset();
     });
 
     this.refreshAllRangeProgress();
@@ -908,6 +918,7 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       maxActiveFronts: MathUtils.clamp(Math.round(params.maxActiveFronts), 1, 512),
       initialLoopSize: MathUtils.clamp(Math.round(params.initialLoopSize), 2, 256),
       boundsRadius: MathUtils.clamp(Math.round(params.boundsRadius), 4, 4096),
+      symmetryAcrossXYPlane: Boolean(params.symmetryAcrossXYPlane),
     };
   }
 

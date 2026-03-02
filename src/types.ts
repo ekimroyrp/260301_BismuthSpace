@@ -14,6 +14,7 @@ export interface SimulationParams {
   maxActiveFronts: number;
   initialLoopSize: number;
   boundsRadius: number;
+  symmetryAcrossXYPlane: boolean;
 }
 
 export interface PipeParams {

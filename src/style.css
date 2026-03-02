@@ -201,6 +201,22 @@ body {
   gap: calc(12px * var(--ui-size-scale));
 }
 
+.toggle-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: calc(14px * var(--ui-size-scale));
+  margin-bottom: calc(10px * var(--ui-size-scale));
+}
+
+.toggle-control input[type="checkbox"] {
+  width: calc(16px * var(--ui-size-scale));
+  height: calc(16px * var(--ui-size-scale));
+  margin: 0;
+  accent-color: var(--ui-blue-b);
+  cursor: pointer;
+}
+
 input[type="range"] {
   width: 100%;
   appearance: none;

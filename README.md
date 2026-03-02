@@ -45,6 +45,7 @@
   - `Upward Turn Chance`
   - `Max Active Fronts`
   - `Initial Loop Size`
+  - `Symmetry` (mirrors generated growth across the XY plane)
   - `New Segment Chance`
   - `Death Chance`
   - `Group Spawn Scale`
