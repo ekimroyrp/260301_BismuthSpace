@@ -99,4 +99,27 @@ describe('BismuthSimulator', () => {
     const hasVerticalEdge = simulator.getEdges().some((edge) => edge.b.y - edge.a.y > 0);
     expect(hasVerticalEdge).toBe(true);
   });
+
+  it('keeps at most one active up-axis segment per front to avoid top-turn layer skips', () => {
+    const simulator = new BismuthSimulator({
+      ...BASE_PARAMS,
+      maxSegments: 600,
+      segmentsPerStep: 1,
+      branchChance: 0,
+      maxActiveFronts: 1,
+      newSegmentChance: 1,
+      upwardTurnChance: 1,
+    });
+
+    for (let i = 0; i < 300 && !simulator.isFinished(); i += 1) {
+      simulator.step(1);
+      const fronts = (
+        simulator as unknown as { fronts: Array<{ segments: Array<{ axis: 'horizontal' | 'up' }> }> }
+      ).fronts;
+      for (const front of fronts) {
+        const upCount = front.segments.reduce((count, segment) => count + (segment.axis === 'up' ? 1 : 0), 0);
+        expect(upCount).toBeLessThanOrEqual(1);
+      }
+    }
+  });
 });

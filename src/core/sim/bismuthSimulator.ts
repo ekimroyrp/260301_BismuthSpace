@@ -260,9 +260,11 @@ export class BismuthSimulator {
     }
 
     if (front.segments.length === 0 || this.rng.next() < this.params.newSegmentChance) {
+      const hasUpSegment = front.segments.some((segment) => segment.axis === 'up');
+      const axis = this.rng.next() < this.params.upwardTurnChance && !hasUpSegment ? 'up' : 'horizontal';
       front.segments.push({
         length: 0,
-        axis: this.rng.next() < this.params.upwardTurnChance ? 'up' : 'horizontal',
+        axis,
       });
     }
 
@@ -272,7 +274,7 @@ export class BismuthSimulator {
       segment.length += growthDelta;
     }
 
-    this.trimSegmentHistory(front);
+    const trimmedUpSteps = this.trimSegmentHistory(front);
     if (!front.alive) {
       return [];
     }
@@ -296,8 +298,10 @@ export class BismuthSimulator {
     this.maybeSpawnBranch(front, emitResult.head);
     this.maybeKillFront(front);
 
-    // Prevent doubled vertical spacing: if this path already emitted any +Y rise, skip the extra loop rise.
-    const additionalLoopRise = emitResult.upwardStepCount > 0 ? 0 : LAYER_RISE_PER_LOOP;
+    // Keep top-of-upturn horizontal returns flush: any vertical participation suppresses extra loop rise.
+    const hasUpAxisSegment = front.segments.some((segment) => segment.axis === 'up');
+    const hasVerticalProgress = hasUpAxisSegment || emitResult.upwardStepCount > 0 || trimmedUpSteps > 0;
+    const additionalLoopRise = hasVerticalProgress ? 0 : LAYER_RISE_PER_LOOP;
     front.layerY += additionalLoopRise;
     front.basePosition.y += additionalLoopRise;
     front.layerY = front.basePosition.y;
@@ -309,18 +313,21 @@ export class BismuthSimulator {
     return emitResult.addedEdges;
   }
 
-  private trimSegmentHistory(front: FrontState): void {
+  private trimSegmentHistory(front: FrontState): number {
+    let trimmedUpSteps = 0;
     while (front.segments.length > this.params.maxSegmentsPerFront) {
       const removed = front.segments.shift();
       if (!removed) {
-        return;
+        return trimmedUpSteps;
       }
 
-      // Keep planar stepping quantized to one lattice unit so render spacing tracks pipe thickness exactly.
-      const removedSteps = Math.min(1, Math.max(0, Math.floor(removed.length)));
       if (removed.axis === 'up') {
+        const removedSteps = Math.min(1, Math.max(0, Math.floor(removed.length)));
         front.basePosition.y += removedSteps;
+        trimmedUpSteps += removedSteps;
       } else {
+        // Keep planar stepping quantized to one lattice unit so render spacing tracks pipe thickness exactly.
+        const removedSteps = Math.min(1, Math.max(0, Math.floor(removed.length)));
         const forward = HORIZONTAL_DIRECTIONS[front.baseDirectionIndex];
         front.basePosition = {
           x: front.basePosition.x + forward.x * removedSteps,
@@ -334,9 +341,11 @@ export class BismuthSimulator {
 
       if (!this.withinBounds(front.basePosition)) {
         front.alive = false;
-        return;
+        return trimmedUpSteps;
       }
     }
+
+    return trimmedUpSteps;
   }
 
   private emitFrontPath(front: FrontState): EmitPathResult {
