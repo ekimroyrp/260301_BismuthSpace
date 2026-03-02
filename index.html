@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>260301_BismuthSpace</title>
+    <style>
+      #ui-panel {
+        visibility: hidden;
+        opacity: 0;
+      }
+
+      html.ui-ready #ui-panel {
+        visibility: visible;
+        opacity: 1;
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-BsfOweoT.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/three-core-BKKFfVY7.js">
+    <link rel="modulepreload" crossorigin href="./assets/three-extras-DXtk05Zd.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-CsYxQ0b5.css">
+  </head>
+  <body>
+    <div id="ui-panel" class="apple-panel">
+      <div id="ui-handle" class="panel-drag-handle">
+        <button
+          type="button"
+          id="collapse-toggle"
+          class="collapse-button panel-collapse-toggle"
+          aria-label="Collapse controls"
+          aria-expanded="true"
+        >
+          <span class="collapse-icon">v</span>
+        </button>
+      </div>
+      <div class="ui-body panel-sections">
+        <div class="control-hint">Wheel = Zoom, MMB = Pan, RMB = Orbit</div>
+        <section class="panel-section">
+          <div class="panel-section-header">
+            <span class="panel-section-label">Simulation</span>
+          </div>
+          <div class="panel-section-content panel-controls-stack">
+        <div class="control">
+          <button type="button" id="start-sim" class="pill-button control-button-wide">Start</button>
+        </div>
+
+        <div class="control">
+          <button type="button" id="reset-sim" class="pill-button control-button-wide">Reset</button>
+        </div>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Speed</span>
+            <span id="growth-rate-value">8</span>
+          </div>
+          <input type="range" id="growth-rate" min="1" max="64" step="1" value="8" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Seed</span>
+            <span id="seed-slider-value">351107</span>
+          </div>
+          <input type="range" id="seed-value" min="0" max="999999" step="1" value="351107" />
+        </label>
+
+        <div class="control control-grid-2">
+          <label class="control compact toggle-control" for="symmetry-toggle">
+            <span>Symmetry</span>
+            <input type="checkbox" id="symmetry-toggle" />
+          </label>
+          <label class="control compact toggle-control" for="flip-toggle">
+            <span>Flip</span>
+            <input type="checkbox" id="flip-toggle" />
+          </label>
+        </div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-section-header">
+            <span class="panel-section-label">Paths</span>
+          </div>
+          <div class="panel-section-content panel-controls-stack">
+        <label class="control">
+          <div class="control-row">
+            <span>Starting Size</span>
+            <span id="initial-loop-value">4</span>
+          </div>
+          <input type="range" id="initial-loop" min="3" max="36" step="1" value="4" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Max Growing Paths</span>
+            <span id="max-fronts-value">40</span>
+          </div>
+          <input type="range" id="max-fronts" min="1" max="64" step="1" value="40" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Split Chance</span>
+            <span id="branch-chance-value">0.18</span>
+          </div>
+          <input type="range" id="branch-chance" min="0" max="0.75" step="0.01" value="0.18" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Split Boost</span>
+            <span id="group-spawn-scale-value">0.083</span>
+          </div>
+          <input type="range" id="group-spawn-scale" min="0" max="0.3" step="0.005" value="0.083" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Rise Chance</span>
+            <span id="upward-turn-chance-value">0.080</span>
+          </div>
+          <input type="range" id="upward-turn-chance" min="0" max="0.5" step="0.005" value="0.08" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Add Section Chance</span>
+            <span id="new-segment-chance-value">0.10</span>
+          </div>
+          <input type="range" id="new-segment-chance" min="0" max="0.5" step="0.005" value="0.1" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Max Sections per Path</span>
+            <span id="max-segments-front-value">6</span>
+          </div>
+          <input type="range" id="max-segments-front" min="1" max="16" step="1" value="6" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Stuck Tolerance</span>
+            <span id="front-collision-limit-value">18</span>
+          </div>
+          <input type="range" id="front-collision-limit" min="2" max="60" step="1" value="18" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Base Growth</span>
+            <span id="segment-growth-bias-value">0.00</span>
+          </div>
+          <input type="range" id="segment-growth-bias" min="0" max="2" step="0.01" value="0" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Growth Variation</span>
+            <span id="segment-growth-scale-value">3.00</span>
+          </div>
+          <input type="range" id="segment-growth-scale" min="0" max="4" step="0.01" value="3" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Stop Chance</span>
+            <span id="death-chance-value">0.01</span>
+          </div>
+          <input type="range" id="death-chance" min="0" max="0.1" step="0.001" value="0.01" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Path Thickness</span>
+            <span id="pipe-outer-size-value">0.22</span>
+          </div>
+          <input type="range" id="pipe-outer-size" min="0.08" max="3" step="0.01" value="0.22" />
+        </label>
+
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-section-header">
+            <span class="panel-section-label">Material</span>
+          </div>
+          <div class="panel-section-content panel-controls-stack">
+
+        <div class="control control-grid-2">
+          <label class="control compact">
+            <div class="control-row">
+              <span>Gradient Start</span>
+            </div>
+            <input type="color" id="gradient-start-color" class="color-picker" value="#ffffff" />
+          </label>
+          <label class="control compact">
+            <div class="control-row">
+              <span>Gradient End</span>
+            </div>
+            <input type="color" id="gradient-end-color" class="color-picker" value="#000000" />
+          </label>
+        </div>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Iridescence</span>
+            <span id="iridescence-strength-value">1.05</span>
+          </div>
+          <input type="range" id="iridescence-strength" min="0" max="1.5" step="0.01" value="1.05" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Frequency</span>
+            <span id="hue-band-frequency-value">1.25</span>
+          </div>
+          <input type="range" id="hue-band-frequency" min="0.1" max="3" step="0.01" value="1.25" />
+        </label>
+
+        <label class="control">
+          <div class="control-row">
+            <span>Reflectiveness</span>
+            <span id="reflectiveness-value">0.25</span>
+          </div>
+          <input type="range" id="reflectiveness" min="0" max="1" step="0.01" value="0.25" />
+        </label>
+          </div>
+        </section>
+      </div>
+      <div id="ui-handle-bottom"></div>
+    </div>
+    <canvas id="app-canvas"></canvas>
+  </body>
+</html>
