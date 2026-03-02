@@ -91,8 +91,8 @@ const DEFAULT_PIPE_PARAMS: PipeParams = {
 };
 
 const DEFAULT_MATERIAL_PARAMS: MaterialParams = {
-  iridescenceStrength: 0.75,
-  hueBandFrequency: 0.9,
+  iridescenceStrength: 1.05,
+  hueBandFrequency: 1.25,
   huePhaseSpeed: 0,
 };
 
@@ -128,14 +128,14 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.scene = new Scene();
-    this.scene.background = new Color('#050709');
+    this.scene.background = new Color('#000000');
 
     this.renderer = new WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMappingExposure = 1.24;
     this.renderer.shadowMap.enabled = true;
 
     this.camera = new PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 12000);
@@ -248,15 +248,15 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   }
 
   private setupStage(): void {
-    const ambient = new AmbientLight(0xffffff, 0.25);
+    const ambient = new AmbientLight(0xffffff, 0.36);
     this.scene.add(ambient);
 
-    const key = new DirectionalLight(0xffffff, 1.15);
-    key.position.set(18, 32, 10);
+    const key = new DirectionalLight(0xffffff, 1.7);
+    key.position.set(20, 30, 16);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 0.5;
-    key.shadow.camera.far = 220;
+    key.shadow.camera.far = 260;
     key.shadow.camera.left = -45;
     key.shadow.camera.right = 45;
     key.shadow.camera.top = 45;
@@ -264,20 +264,23 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     key.shadow.bias = -0.00008;
     this.scene.add(key);
 
-    const rimA = new DirectionalLight(new Color('#79d5ff'), 0.45);
-    rimA.position.set(-20, 12, -10);
-    this.scene.add(rimA);
+    const fill = new DirectionalLight(new Color('#fff4e4'), 0.95);
+    fill.position.set(-22, 14, 10);
+    this.scene.add(fill);
 
-    const rimB = new DirectionalLight(new Color('#ff87d7'), 0.35);
-    rimB.position.set(14, 8, -20);
-    this.scene.add(rimB);
+    const coolRim = new DirectionalLight(new Color('#d6e7ff'), 0.78);
+    coolRim.position.set(12, 12, -24);
+    this.scene.add(coolRim);
 
+    const top = new DirectionalLight(0xffffff, 0.48);
+    top.position.set(0, 42, 0);
+    this.scene.add(top);
   }
 
   private setupEnvironment(): void {
     const pmrem = new PMREMGenerator(this.renderer);
     const env = new RoomEnvironment();
-    this.environmentTarget = pmrem.fromScene(env, 0.6);
+    this.environmentTarget = pmrem.fromScene(env, 1);
     env.dispose();
     pmrem.dispose();
 
