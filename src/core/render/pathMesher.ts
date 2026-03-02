@@ -1,4 +1,4 @@
-import { Matrix4, Quaternion, Vector3 } from 'three';
+import { Color, type ColorRepresentation, Matrix4, Quaternion, Vector3 } from 'three';
 import type { Int3, LatticeEdge } from '../sim/types';
 
 export type VertexType = 'isolated' | 'endpoint' | 'straight' | 'turn' | 'junction';
@@ -61,13 +61,19 @@ export function computeTrimmedSegmentLength(
 
 export interface PipeInstanceBuildResult {
   straightMatrices: Matrix4[];
+  straightColors: Color[];
+  straightColorFactors: number[];
   cornerMatrices: Matrix4[];
+  cornerColors: Color[];
+  cornerColorFactors: number[];
 }
 
 export interface PipeBuildOptions {
   cornerInset: number;
   layerStepHeight: number;
   planarStepSize: number;
+  branchColorStart: ColorRepresentation;
+  branchColorEnd: ColorRepresentation;
 }
 
 export function buildPipeInstanceMatrices(
@@ -76,6 +82,8 @@ export function buildPipeInstanceMatrices(
 ): PipeInstanceBuildResult {
   const adjacency = new Map<string, Set<string>>();
   const vertices = new Map<string, Int3>();
+  const edgeBranchIds = new Map<string, number>();
+  const branchLayerExtents = new Map<number, { minY: number; maxY: number }>();
 
   const link = (a: Int3, b: Int3): void => {
     const keyA = pointKey(a);
@@ -94,6 +102,20 @@ export function buildPipeInstanceMatrices(
 
   for (const edge of edges) {
     link(edge.a, edge.b);
+    const branchId = edge.branchId ?? 0;
+    const edgeKey = normalizeEdgeKey(edge.a, edge.b);
+    if (!edgeBranchIds.has(edgeKey)) {
+      edgeBranchIds.set(edgeKey, branchId);
+    }
+    const minY = Math.min(edge.a.y, edge.b.y);
+    const maxY = Math.max(edge.a.y, edge.b.y);
+    const current = branchLayerExtents.get(branchId);
+    if (current) {
+      current.minY = Math.min(current.minY, minY);
+      current.maxY = Math.max(current.maxY, maxY);
+    } else {
+      branchLayerExtents.set(branchId, { minY, maxY });
+    }
   }
 
   const vertexTypes = new Map<string, VertexType>();
@@ -110,10 +132,31 @@ export function buildPipeInstanceMatrices(
   }
 
   const straightMatrices: Matrix4[] = [];
+  const straightColors: Color[] = [];
+  const straightColorFactors: number[] = [];
   const cornerMatrices: Matrix4[] = [];
+  const cornerColors: Color[] = [];
+  const cornerColorFactors: number[] = [];
+
+  const gradientStart = new Color(options.branchColorStart);
+  const gradientEnd = new Color(options.branchColorEnd);
 
   const layerStepHeight = Math.max(1e-4, options.layerStepHeight);
   const planarStepSize = Math.max(1e-4, options.planarStepSize);
+
+  const evaluateLayerFactor = (branchId: number, layerY: number): number => {
+    const extents = branchLayerExtents.get(branchId);
+    if (!extents || extents.maxY <= extents.minY + 1e-6) {
+      return 0;
+    }
+    const raw = (layerY - extents.minY) / (extents.maxY - extents.minY);
+    return Math.max(0, Math.min(1, raw));
+  };
+
+  const evaluateLayerColor = (branchId: number, layerY: number): Color => {
+    const t = evaluateLayerFactor(branchId, layerY);
+    return gradientStart.clone().lerp(gradientEnd, t);
+  };
 
   const direction = new Vector3();
   const start = new Vector3();
@@ -122,7 +165,7 @@ export function buildPipeInstanceMatrices(
   const quaternion = new Quaternion();
   const scale = new Vector3();
   const matrix = new Matrix4();
-  const addStraightMatrix = (pointA: Int3, pointB: Int3): void => {
+  const addStraightMatrix = (pointA: Int3, pointB: Int3, branchId: number): void => {
     const keyA = pointKey(pointA);
     const keyB = pointKey(pointB);
     const typeA = vertexTypes.get(keyA) ?? 'isolated';
@@ -163,20 +206,33 @@ export function buildPipeInstanceMatrices(
     scale.set(1, trimmedLength, 1);
     matrix.compose(midpoint, quaternion, scale);
     straightMatrices.push(matrix.clone());
+    const layerY = (pointA.y + pointB.y) * 0.5;
+    straightColorFactors.push(evaluateLayerFactor(branchId, layerY));
+    straightColors.push(evaluateLayerColor(branchId, layerY));
   };
 
-  const xRuns = new Map<string, Set<number>>();
-  const yRuns = new Map<string, Set<number>>();
-  const zRuns = new Map<string, Set<number>>();
+  const xRuns = new Map<string, Map<number, Set<number>>>();
+  const yRuns = new Map<string, Map<number, Set<number>>>();
+  const zRuns = new Map<string, Map<number, Set<number>>>();
 
-  const addUnit = (runs: Map<string, Set<number>>, key: string, start: number): void => {
+  const addUnit = (
+    runs: Map<string, Map<number, Set<number>>>,
+    key: string,
+    branchId: number,
+    start: number,
+  ): void => {
     if (!runs.has(key)) {
-      runs.set(key, new Set<number>());
+      runs.set(key, new Map<number, Set<number>>());
     }
-    runs.get(key)?.add(start);
+    const branchStarts = runs.get(key);
+    if (!branchStarts?.has(branchId)) {
+      branchStarts?.set(branchId, new Set<number>());
+    }
+    branchStarts?.get(branchId)?.add(start);
   };
 
   for (const edge of edges) {
+    const branchId = edge.branchId ?? 0;
     const dx = edge.b.x - edge.a.x;
     const dy = edge.b.y - edge.a.y;
     const dz = edge.b.z - edge.a.z;
@@ -188,64 +244,70 @@ export function buildPipeInstanceMatrices(
     if (dx !== 0) {
       const y = edge.a.y;
       const z = edge.a.z;
-      addUnit(xRuns, `${y},${z}`, Math.min(edge.a.x, edge.b.x));
+      addUnit(xRuns, `${y},${z}`, branchId, Math.min(edge.a.x, edge.b.x));
       continue;
     }
     if (dy !== 0) {
       const x = edge.a.x;
       const z = edge.a.z;
-      addUnit(yRuns, `${x},${z}`, Math.min(edge.a.y, edge.b.y));
+      addUnit(yRuns, `${x},${z}`, branchId, Math.min(edge.a.y, edge.b.y));
       continue;
     }
     const x = edge.a.x;
     const y = edge.a.y;
-    addUnit(zRuns, `${x},${y}`, Math.min(edge.a.z, edge.b.z));
+    addUnit(zRuns, `${x},${y}`, branchId, Math.min(edge.a.z, edge.b.z));
   }
 
-  const emitAxisRuns = (runs: Map<string, Set<number>>, axis: 'x' | 'y' | 'z'): void => {
-    for (const [key, startsSet] of runs) {
-      const starts = Array.from(startsSet).sort((a, b) => a - b);
-      if (starts.length === 0) {
-        continue;
-      }
-
+  const emitAxisRuns = (runs: Map<string, Map<number, Set<number>>>, axis: 'x' | 'y' | 'z'): void => {
+    for (const [key, branchStarts] of runs) {
       const [fixedA, fixedB] = key.split(',').map((entry) => Number.parseInt(entry, 10));
-      let runStart = starts[0];
-      let runLast = starts[0];
 
-      const flush = (startValue: number, endExclusive: number): void => {
-        if (axis === 'x') {
-          addStraightMatrix(
-            { x: startValue, y: fixedA, z: fixedB },
-            { x: endExclusive, y: fixedA, z: fixedB },
-          );
-          return;
-        }
-        if (axis === 'y') {
-          addStraightMatrix(
-            { x: fixedA, y: startValue, z: fixedB },
-            { x: fixedA, y: endExclusive, z: fixedB },
-          );
-          return;
-        }
-        addStraightMatrix(
-          { x: fixedA, y: fixedB, z: startValue },
-          { x: fixedA, y: fixedB, z: endExclusive },
-        );
-      };
-
-      for (let i = 1; i < starts.length; i += 1) {
-        const next = starts[i];
-        if (next === runLast + 1) {
-          runLast = next;
+      for (const [branchId, startsSet] of branchStarts) {
+        const starts = Array.from(startsSet).sort((a, b) => a - b);
+        if (starts.length === 0) {
           continue;
         }
-        flush(runStart, runLast + 1);
-        runStart = next;
-        runLast = next;
-      }
 
-      flush(runStart, runLast + 1);
+        let runStart = starts[0];
+        let runLast = starts[0];
+
+        const flush = (startValue: number, endExclusive: number): void => {
+          if (axis === 'x') {
+            addStraightMatrix(
+              { x: startValue, y: fixedA, z: fixedB },
+              { x: endExclusive, y: fixedA, z: fixedB },
+              branchId,
+            );
+            return;
+          }
+          if (axis === 'y') {
+            addStraightMatrix(
+              { x: fixedA, y: startValue, z: fixedB },
+              { x: fixedA, y: endExclusive, z: fixedB },
+              branchId,
+            );
+            return;
+          }
+          addStraightMatrix(
+            { x: fixedA, y: fixedB, z: startValue },
+            { x: fixedA, y: fixedB, z: endExclusive },
+            branchId,
+          );
+        };
+
+        for (let i = 1; i < starts.length; i += 1) {
+          const next = starts[i];
+          if (next === runLast + 1) {
+            runLast = next;
+            continue;
+          }
+          flush(runStart, runLast + 1);
+          runStart = next;
+          runLast = next;
+        }
+
+        flush(runStart, runLast + 1);
+      }
     }
   };
 
@@ -259,13 +321,38 @@ export function buildPipeInstanceMatrices(
     }
 
     const center = vertices.get(key) ?? parsePointKey(key);
+    let branchId = 0;
+    const neighbors = adjacency.get(key);
+    if (neighbors) {
+      for (const neighborKey of neighbors) {
+        const neighbor = vertices.get(neighborKey) ?? parsePointKey(neighborKey);
+        const edgeKey = normalizeEdgeKey(center, neighbor);
+        const nextBranchId = edgeBranchIds.get(edgeKey);
+        if (nextBranchId !== undefined) {
+          branchId = nextBranchId;
+          break;
+        }
+      }
+    }
     cornerMatrices.push(
       new Matrix4().makeTranslation(center.x * planarStepSize, center.y * layerStepHeight, center.z * planarStepSize),
     );
+    cornerColorFactors.push(evaluateLayerFactor(branchId, center.y));
+    cornerColors.push(evaluateLayerColor(branchId, center.y));
   }
 
   return {
     straightMatrices,
+    straightColors,
+    straightColorFactors,
     cornerMatrices,
+    cornerColors,
+    cornerColorFactors,
   };
+}
+
+function normalizeEdgeKey(a: Int3, b: Int3): string {
+  const keyA = pointKey(a);
+  const keyB = pointKey(b);
+  return keyA < keyB ? `${keyA}|${keyB}` : `${keyB}|${keyA}`;
 }

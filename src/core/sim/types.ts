@@ -7,6 +7,7 @@ export interface Int3 {
 export interface LatticeEdge {
   a: Int3;
   b: Int3;
+  branchId?: number;
 }
 
 export interface StepResult {

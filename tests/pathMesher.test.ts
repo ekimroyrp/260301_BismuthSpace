@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { Quaternion, Vector3 } from 'three';
+import { Color, Quaternion, Vector3 } from 'three';
 import {
   buildPipeInstanceMatrices,
   classifyVertex,
   computeTrimmedSegmentLength,
 } from '../src/core/render/pathMesher';
 import type { LatticeEdge } from '../src/core/sim/types';
+
+const DEFAULT_MESHER_OPTIONS = {
+  cornerInset: 0.11,
+  layerStepHeight: 1,
+  planarStepSize: 1,
+  branchColorStart: '#000000',
+  branchColorEnd: '#ffffff',
+} as const;
 
 describe('pathMesher classifyVertex', () => {
   it('classifies endpoint, straight, and turn correctly', () => {
@@ -27,12 +35,7 @@ describe('pathMesher classifyVertex', () => {
       { a: { x: 2, y: 0, z: 0 }, b: { x: 3, y: 0, z: 0 } },
     ];
 
-    const result = buildPipeInstanceMatrices(edges, {
-      cornerInset: 0.11,
-      layerStepHeight: 1,
-      planarStepSize: 1,
-    });
-
+    const result = buildPipeInstanceMatrices(edges, DEFAULT_MESHER_OPTIONS);
     expect(result.straightMatrices.length).toBe(1);
 
     const position = new Vector3();
@@ -50,12 +53,7 @@ describe('pathMesher classifyVertex', () => {
       { a: { x: 1, y: 0, z: 0 }, b: { x: 1, y: 1, z: 0 } },
     ];
 
-    const result = buildPipeInstanceMatrices(edges, {
-      cornerInset: 0.11,
-      layerStepHeight: 1,
-      planarStepSize: 1,
-    });
-
+    const result = buildPipeInstanceMatrices(edges, DEFAULT_MESHER_OPTIONS);
     expect(result.straightMatrices.length).toBe(2);
 
     const lengths = result.straightMatrices
@@ -80,12 +78,7 @@ describe('pathMesher classifyVertex', () => {
       { a: { x: 1, y: 0, z: 0 }, b: { x: 1, y: 1, z: 0 } },
     ];
 
-    const result = buildPipeInstanceMatrices(edges, {
-      cornerInset: 0.11,
-      layerStepHeight: 1,
-      planarStepSize: 1,
-    });
-
+    const result = buildPipeInstanceMatrices(edges, DEFAULT_MESHER_OPTIONS);
     expect(result.straightMatrices.length).toBe(2);
 
     const lengths = result.straightMatrices
@@ -110,12 +103,7 @@ describe('pathMesher classifyVertex', () => {
       { a: { x: 0, y: 1, z: 0 }, b: { x: 1, y: 1, z: 0 } },
     ];
 
-    const result = buildPipeInstanceMatrices(edges, {
-      cornerInset: 0.11,
-      layerStepHeight: 1,
-      planarStepSize: 1,
-    });
-
+    const result = buildPipeInstanceMatrices(edges, DEFAULT_MESHER_OPTIONS);
     expect(result.straightMatrices.length).toBe(2);
 
     const lengths = result.straightMatrices
@@ -130,5 +118,22 @@ describe('pathMesher classifyVertex', () => {
 
     expect(lengths[0]).toBeCloseTo(1);
     expect(lengths[1]).toBeCloseTo(3);
+  });
+
+  it('assigns branch-local gradient colors from first layer to last layer', () => {
+    const edges: LatticeEdge[] = [
+      { a: { x: 0, y: 0, z: 0 }, b: { x: 1, y: 0, z: 0 }, branchId: 42 },
+      { a: { x: 0, y: 4, z: 0 }, b: { x: 1, y: 4, z: 0 }, branchId: 42 },
+    ];
+
+    const result = buildPipeInstanceMatrices(edges, DEFAULT_MESHER_OPTIONS);
+    expect(result.straightColors.length).toBe(2);
+
+    const black = new Color('#000000').getHexString();
+    const white = new Color('#ffffff').getHexString();
+    const hasBlack = result.straightColors.some((color) => color.getHexString() === black);
+    const hasWhite = result.straightColors.some((color) => color.getHexString() === white);
+    expect(hasBlack).toBe(true);
+    expect(hasWhite).toBe(true);
   });
 });

@@ -368,7 +368,7 @@ export class BismuthSimulator {
             hitBounds = true;
             break;
           }
-          this.tryAddEdge(a, b, addedEdges);
+          this.tryAddEdge(a, b, addedEdges, front.id);
           cursorY = b.y;
           upwardStepCount += 1;
         }
@@ -387,7 +387,7 @@ export class BismuthSimulator {
             break;
           }
 
-          this.tryAddEdge(a, b, addedEdges);
+          this.tryAddEdge(a, b, addedEdges, front.id);
           cursorX = b.x;
           cursorZ = b.z;
         }
@@ -451,7 +451,7 @@ export class BismuthSimulator {
     }
   }
 
-  private tryAddEdge(a: Int3, b: Int3, addedEdges: LatticeEdge[]): void {
+  private tryAddEdge(a: Int3, b: Int3, addedEdges: LatticeEdge[], branchId: number): void {
     if (!this.withinBounds(a) || !this.withinBounds(b)) {
       return;
     }
@@ -479,6 +479,7 @@ export class BismuthSimulator {
     addedEdges.push({
       a: clonePoint(a),
       b: clonePoint(b),
+      branchId,
     });
   }
 

@@ -59,6 +59,8 @@ interface UiElements {
   frontCollisionLimitValue: HTMLSpanElement;
   pipeOuterSize: HTMLInputElement;
   pipeOuterSizeValue: HTMLSpanElement;
+  gradientStartColor: HTMLInputElement;
+  gradientEndColor: HTMLInputElement;
   iridescenceStrength: HTMLInputElement;
   iridescenceStrengthValue: HTMLSpanElement;
   hueBandFrequency: HTMLInputElement;
@@ -94,6 +96,9 @@ const DEFAULT_MATERIAL_PARAMS: MaterialParams = {
   huePhaseSpeed: 0,
 };
 
+const DEFAULT_BRANCH_GRADIENT_START = '#5de9ff';
+const DEFAULT_BRANCH_GRADIENT_END = '#ff5ac0';
+
 class BismuthFormsAppImpl implements BismuthFormsApp {
   private readonly canvas: HTMLCanvasElement;
   private readonly renderer: WebGLRenderer;
@@ -109,12 +114,16 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
   private environmentTarget: WebGLRenderTarget | null = null;
   private straightInstancer: StraightPipeInstancer | null = null;
   private cornerInstancer: MiterCornerInstancer | null = null;
+  private straightColorFactors: number[] = [];
+  private cornerColorFactors: number[] = [];
   private running = false;
   private animationFrame = 0;
 
   private simulationParams: SimulationParams = { ...DEFAULT_SIMULATION_PARAMS };
   private pipeParams: PipeParams = { ...DEFAULT_PIPE_PARAMS };
   private materialParams: MaterialParams = { ...DEFAULT_MATERIAL_PARAMS };
+  private readonly branchGradientStart = new Color(DEFAULT_BRANCH_GRADIENT_START);
+  private readonly branchGradientEnd = new Color(DEFAULT_BRANCH_GRADIENT_END);
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -318,10 +327,26 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       cornerInset: this.pipeParams.cornerInset,
       layerStepHeight: this.pipeParams.pipeOuterSize,
       planarStepSize: this.pipeParams.pipeOuterSize,
+      branchColorStart: this.branchGradientStart,
+      branchColorEnd: this.branchGradientEnd,
     });
 
-    this.straightInstancer.setMatrices(meshData.straightMatrices);
-    this.cornerInstancer.setMatrices(meshData.cornerMatrices);
+    this.straightInstancer.setMatrices(meshData.straightMatrices, meshData.straightColors);
+    this.cornerInstancer.setMatrices(meshData.cornerMatrices, meshData.cornerColors);
+    this.straightColorFactors = meshData.straightColorFactors;
+    this.cornerColorFactors = meshData.cornerColorFactors;
+  }
+
+  private refreshGradientColorsOnly(): void {
+    if (!this.straightInstancer || !this.cornerInstancer) {
+      return;
+    }
+    this.straightInstancer.setColorsByLerp(
+      this.straightColorFactors,
+      this.branchGradientStart,
+      this.branchGradientEnd,
+    );
+    this.cornerInstancer.setColorsByLerp(this.cornerColorFactors, this.branchGradientStart, this.branchGradientEnd);
   }
 
   private animationLoop = (): void => {
@@ -396,6 +421,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
     const frontCollisionLimitValue = document.getElementById('front-collision-limit-value');
     const pipeOuterSize = document.getElementById('pipe-outer-size');
     const pipeOuterSizeValue = document.getElementById('pipe-outer-size-value');
+    const gradientStartColor = document.getElementById('gradient-start-color');
+    const gradientEndColor = document.getElementById('gradient-end-color');
     const iridescenceStrength = document.getElementById('iridescence-strength');
     const iridescenceStrengthValue = document.getElementById('iridescence-strength-value');
     const hueBandFrequency = document.getElementById('hue-band-frequency');
@@ -437,6 +464,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       !(frontCollisionLimitValue instanceof HTMLSpanElement) ||
       !(pipeOuterSize instanceof HTMLInputElement) ||
       !(pipeOuterSizeValue instanceof HTMLSpanElement) ||
+      !(gradientStartColor instanceof HTMLInputElement) ||
+      !(gradientEndColor instanceof HTMLInputElement) ||
       !(iridescenceStrength instanceof HTMLInputElement) ||
       !(iridescenceStrengthValue instanceof HTMLSpanElement) ||
       !(hueBandFrequency instanceof HTMLInputElement) ||
@@ -481,6 +510,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
       frontCollisionLimitValue,
       pipeOuterSize,
       pipeOuterSizeValue,
+      gradientStartColor,
+      gradientEndColor,
       iridescenceStrength,
       iridescenceStrengthValue,
       hueBandFrequency,
@@ -490,6 +521,8 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
   private setupUi(): void {
     this.ui.seed.value = String(this.simulationParams.seed);
+    this.ui.gradientStartColor.value = DEFAULT_BRANCH_GRADIENT_START;
+    this.ui.gradientEndColor.value = DEFAULT_BRANCH_GRADIENT_END;
 
     this.bindRange(this.ui.growthRate, this.ui.growthRateValue, (value) => `${Math.round(value)}`, (value) => {
       this.setSimulationParams({ segmentsPerStep: Math.round(value) });
@@ -580,6 +613,17 @@ class BismuthFormsAppImpl implements BismuthFormsApp {
 
     this.bindRange(this.ui.pipeOuterSize, this.ui.pipeOuterSizeValue, (value) => value.toFixed(2), (value) => {
       this.setPipeParams({ pipeOuterSize: value });
+    });
+
+    this.addDomListener(this.ui.gradientStartColor, 'input', () => {
+      this.branchGradientStart.set(this.ui.gradientStartColor.value);
+      this.refreshGradientColorsOnly();
+      this.renderFrame();
+    });
+    this.addDomListener(this.ui.gradientEndColor, 'input', () => {
+      this.branchGradientEnd.set(this.ui.gradientEndColor.value);
+      this.refreshGradientColorsOnly();
+      this.renderFrame();
     });
 
     this.bindRange(
